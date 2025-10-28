@@ -1,0 +1,14 @@
+# Build artifacts
+/objs/
+/bins/
+
+# Common intermediate files
+*.o
+*.a
+*.out
+*.d
+
+# VSCode
+.vscode/
+
+
