@@ -1,7 +1,7 @@
 #ifndef PROXY_SERVER_SERVER_PROXY_SERVER_H_
 #define PROXY_SERVER_SERVER_PROXY_SERVER_H_
 
-#include "../core/network.h"
+#include "network.h"
 
 // I know the header define looks long and weird
 // but it follows the format

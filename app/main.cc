@@ -1,6 +1,8 @@
-#include "server/proxy_server.h"
+#include "proxy_server.h"
 
-int main(int argc, char* argv[]) {
+int main(/*int argc, char* argv[]*/) {
+
+    
 
     server::ProxyServer proxy;
     proxy.Run();

@@ -1,4 +1,4 @@
-#include "core/network.h"
+#include "network.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
+#include <errno.h>
 
 
 namespace core {
@@ -45,7 +46,7 @@ namespace core {
         }
 
         SocketIdentifier listening_socket_id = -1;
-        for (addrinfo* ai = result; ai != nullptr; ai->ai_next) {
+        for (addrinfo* ai = result; ai != nullptr; ai = ai->ai_next) {
             SocketIdentifier socket_id = ::socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
             if (socket_id < 0) {
                 // TODO: Log socket() failure

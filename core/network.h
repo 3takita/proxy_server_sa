@@ -33,7 +33,7 @@ namespace core {
 
     // Sets the socket to non-blocking mode
     // Returns true on success, false on failure
-    bool SetNonBlocking(SocketIdentifier id);
+    bool SetSocketNonBlocking(SocketIdentifier id);
 
     // Creates an event poller handle
     // On Linux this is epoll

@@ -1,11 +1,16 @@
 #include "proxy_server.h"
-
-#include "../core/network.h"
+#include "network.h"
 
 #include <sys/epoll.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+
+#include <arpa/inet.h>
+#include <netdb.h>
+
+#include <iostream> // Potentially remove later
+
 
 namespace server {
 
@@ -20,7 +25,7 @@ namespace server {
             return; // We can't do anything without a listening socket
         }
 
-        (void)core::SetNonBlocking(socket_); // This can fail but we will handle the logging and consequences later
+        (void)core::SetSocketNonBlocking(socket_); // This can fail but we will handle the logging and consequences later
 
         poller_ = core::CreateEventPoller();
         if (poller_ < 0) {
@@ -53,6 +58,35 @@ namespace server {
             for (int i = 0; i < n; ++i) {
                 if (events[i].data.fd == socket_) {
                     // TODO: Accept connection and handle data
+
+                    /*------*/
+                    //TODO: Remove all this
+                    sockaddr_storage client_address{};
+                    socklen_t address_length = sizeof(client_address);
+
+                    core::SocketIdentifier client_fd = 
+                        ::accept(socket_, reinterpret_cast<sockaddr*>(&client_address), &address_length);
+
+                    if (client_fd < 0) {
+                        std::cerr << "[Warn] accept() failed, errno=" << errno << std::endl;
+                        continue;
+                    }
+
+                    char host[NI_MAXHOST], service[NI_MAXSERV];
+                    if (getnameinfo(reinterpret_cast<sockaddr*>(&client_address), address_length,
+                                    host, sizeof(host), service, sizeof(service),
+                                    NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+                        std::cout << "[Connection] New client: " << host
+                                  << ":" << service << std::endl;
+                    } else {
+                        std::cout << "[Connection] New client (unresolved)" << std::endl;
+                    }
+
+                    ::close(client_fd);
+                    std::cout << "[Connection] Closed client connection\n";
+                    /*------*/
+
+
                 }
             }
 
