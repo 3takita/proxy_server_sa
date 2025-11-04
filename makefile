@@ -5,7 +5,7 @@ INCLUDES := -Icore -Iserver -Iapp
 BIN_DIR := ./bins
 TARGET  := $(BIN_DIR)/proxy_server
 
-SOURCES := app/main.cc server/proxy_server.cc core/network_linux.cc
+SOURCES := app/*.cc server/*.cc core/*.cc
 
 run:
 	mkdir -p $(BIN_DIR)

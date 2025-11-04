@@ -50,7 +50,7 @@ namespace core {
     // The parameter `events` and `max_events` determine output capacity
     int WaitForEvents(EventPollerIdentifier poller, void* events, int max_events, int timeout_ms);
 
-    // CLoses a socket safely
+    // Closes a socket safely
     void CloseSocket(SocketIdentifier socket);
 
 }   // namespace core
