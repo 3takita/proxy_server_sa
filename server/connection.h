@@ -22,6 +22,8 @@ namespace server {
     struct Connection {
         core::SocketIdentifier id{};
         std::vector<std::byte> receive_buffer;
+        std::vector<std::byte> send_buffer;
+        bool want_write{false};
         bool closed{false};
     };
 

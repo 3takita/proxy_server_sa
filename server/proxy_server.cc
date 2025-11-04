@@ -1,15 +1,11 @@
 #include "proxy_server.h"
 #include "network.h"
 
-#include <sys/epoll.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-
-#include <arpa/inet.h>
-#include <netdb.h>
-
 #include <iostream> // Potentially remove later
+
+#include <sys/socket.h> // Remove later
+#include <netdb.h> // Remove later
+#include <string_view> // Remove later
 
 
 namespace server {
@@ -40,14 +36,16 @@ namespace server {
             return;
         }
 
-        epoll_event events[max_events_];
+        core::PollEvent events[static_cast<std::size_t>(max_events_)];
 
-        while (true) {
+        bool running = true;
+        while (running) {
             int n = core::WaitForEvents(poller_, events, max_events_, -1); 
             if (n < 0) {
                 // TODO: Log epoll_wait error
                 // This is super rare but if it happens we may want to re-create epoll
                 // For now just exit
+                running = false;
                 break;
             } else if (n == 0) {
                 // Not expected with timout = -1
@@ -55,41 +53,51 @@ namespace server {
                 // never need this branch
             }
 
-            for (int i = 0; i < n; ++i) {
-                if (events[i].data.fd == socket_) {
-                    // TODO: Accept connection and handle data
+            for (int i = 0; i < n; i++) {
+                const auto fd = events[i].fd;
+                const auto mask = events[i].mask;
 
-                    /*------*/
-                    //TODO: Remove all this
-                    sockaddr_storage client_address{};
-                    socklen_t address_length = sizeof(client_address);
-
-                    core::SocketIdentifier client_fd = 
-                        ::accept(socket_, reinterpret_cast<sockaddr*>(&client_address), &address_length);
-
-                    if (client_fd < 0) {
-                        std::cerr << "[Warn] accept() failed, errno=" << errno << std::endl;
-                        continue;
+                if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
+                    if (fd == socket_) {
+                        // TODO: Log fatal listening socket error/hangup
+                        running = false;
+                        break;
                     }
-
-                    char host[NI_MAXHOST], service[NI_MAXSERV];
-                    if (getnameinfo(reinterpret_cast<sockaddr*>(&client_address), address_length,
-                                    host, sizeof(host), service, sizeof(service),
-                                    NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
-                        std::cout << "[Connection] New client: " << host
-                                  << ":" << service << std::endl;
-                    } else {
-                        std::cout << "[Connection] New client (unresolved)" << std::endl;
-                    }
-
-                    ::close(client_fd);
-                    std::cout << "[Connection] Closed client connection\n";
-                    /*------*/
-
-
+                    CloseAndRemove(fd, clients_);
+                    continue;
                 }
-            }
 
+                if (fd == socket_) {
+                    (void)AcceptNewConnections(socket_, poller_, clients_);
+                    continue;
+                }
+
+                if (mask & core::kEventReadable) {
+                    (void)OnClientRead(fd, clients_);
+                    // TODO: Handle incoming data for this client
+                    //----------------------------------------------
+                    //Remove
+                    const char response[] =
+                        "HTTP/1.1 200 OK\r\n"
+                        "Content-Type: text/plain\r\n"
+                        "Connection: close\r\n"
+                        "\r\n"
+                        "Hello from your proxy server!\n";
+
+                    ::send(fd, response, sizeof(response) - 1, 0);
+                    core::CloseSocket(fd);
+                    clients_.erase(fd);
+                    //----------------------------------------------
+                }
+
+                if (mask & core::kEventWritable) {
+                    // TODO: Handle outgoing data for this client
+                    //----------------------------------------------
+                    //Remove
+                    
+                }
+                    //----------------------------------------------
+            }
         }
 
         CleanUpResources();
@@ -97,11 +105,21 @@ namespace server {
 
 
     void ProxyServer::CleanUpResources() {
+
+        // Close all client sockets
+        for (auto it = clients_.begin(); it != clients_.end(); ) {
+            const core::SocketIdentifier socket = it->first;
+            core::CloseSocket(socket);
+            it = clients_.erase(it); //Returns the next it
+        }
+
+        // Close poller
         if (poller_ > 0) {
             core::CloseSocket(poller_);
             poller_ = 0;
         }
 
+        // Close listening socket
         if (socket_ > 0) {
             core::CloseSocket(socket_);
             socket_ = 0;

@@ -10,8 +10,8 @@
 
 namespace server {
 
-    constexpr std::size_t KB_8 = 8 * 1024;
-    constexpr std::size_t KB_16 = 16 * 1024;
+    constexpr std::size_t k_8KB = 8 * 1024;
+    constexpr std::size_t k_16KB = 16 * 1024;
 
     ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, ConnectionMap& clients) {
         
@@ -38,7 +38,7 @@ namespace server {
 
             Connection c;
             c.id = client_socket;
-            c.receive_buffer.reserve(KB_8);
+            c.receive_buffer.reserve(k_8KB);
             clients.emplace(client_socket, std::move(c));
 
             // TODO: Log that the client is accepted and registered with epoll
@@ -56,7 +56,7 @@ namespace server {
         }
 
         Connection& connection = it->second;
-        std::byte buffer[KB_16];
+        std::byte buffer[k_16KB];
 
         while (true) {
             std::ptrdiff_t n = core::Receive(socket, buffer, sizeof(buffer));
@@ -92,7 +92,7 @@ namespace server {
         auto it = clients.find(socket);
         if (it != clients.end()) {
             core::CloseSocket(socket);
-            clients.erase(it);
+            (void)clients.erase(it);
             // TODO: Log that client socket is closed
         } else {
             core::CloseSocket(socket);

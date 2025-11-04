@@ -10,6 +10,18 @@ namespace core {
     using SocketIdentifier = int;
     using EventPollerIdentifier = int;
 
+    // Event mask that maps to OS-specific bits
+    inline constexpr uint32_t kEventReadable = 0x01; // Data available to read
+    inline constexpr uint32_t kEventWritable = 0x02; // Data available to write
+    inline constexpr uint32_t kEventError    = 0x04; // Error condition
+    inline constexpr uint32_t kEventHangup   = 0x08; // Hangup/Peer closed
+    inline constexpr uint32_t kEventOther    = 0xF0; // Temp for anything not above. Replace this when adding future event flags
+
+    struct PollEvent {
+        SocketIdentifier fd{};
+        uint32_t mask{}; // bitwise OR of kEvent* flags
+    };
+
     // ===========================
     // Generic Network Abstraction
     // ===========================
@@ -48,7 +60,7 @@ namespace core {
     // Waits for socket events
     // Returns the number of triggered events
     // The parameter `events` and `max_events` determine output capacity
-    int WaitForEvents(EventPollerIdentifier poller, void* events, int max_events, int timeout_ms);
+    int WaitForEvents(EventPollerIdentifier poller, core::PollEvent* events, int max_events, int timeout_ms);
 
     // Accepts a queued connection from a listening socket
     // Returns client socket or -1 on error

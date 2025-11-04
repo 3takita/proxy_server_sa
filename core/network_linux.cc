@@ -1,5 +1,7 @@
 #include "network.h"
 
+#include <vector>
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -132,8 +134,9 @@ namespace core {
         return true;
     }
 
-    int WaitForEvents(EventPollerIdentifier poller, void* events, int max_events, int timeout_ms) {
-        int n = ::epoll_wait(poller, static_cast<epoll_event*>(events), max_events, timeout_ms);
+    int WaitForEvents(EventPollerIdentifier poller, PollEvent* out_events, int max_events, int timeout_ms) {
+        std::vector<epoll_event> tempEvents(static_cast<std::size_t>(max_events));
+        int n = ::epoll_wait(poller, tempEvents.data(), max_events, timeout_ms);
         if (n < 0 && errno != EINTR) {
             // From the epoll man page
             // EINTR --> The call was interrupted by a signal handler before either
@@ -143,6 +146,21 @@ namespace core {
             // Reason: poller invalidation or system call error
             return -1;
         }
+        if (n <= 0) return n; // o or EINTR --> propage to called
+
+        for (int i = 0; i < n; i++) {
+            uint32_t mask = 0;
+            const uint32_t ev = tempEvents[i].events;
+
+            if (ev & EPOLLIN)   mask |= kEventReadable;
+            if (ev & EPOLLOUT)  mask |= kEventWritable;
+            if (ev & EPOLLERR)  mask |= kEventError;
+            if (ev & (EPOLLHUP | EPOLLRDHUP)) mask |= kEventHangup;
+
+            out_events[i].fd = tempEvents[i].data.fd;
+            out_events[i].mask = mask;
+        }
+
         return n;
     }
 
