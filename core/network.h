@@ -50,6 +50,16 @@ namespace core {
     // The parameter `events` and `max_events` determine output capacity
     int WaitForEvents(EventPollerIdentifier poller, void* events, int max_events, int timeout_ms);
 
+    // Accepts a queued connection from a listening socket
+    // Returns client socket or -1 on error
+    SocketIdentifier AcceptConnection(SocketIdentifier listening_socket);
+
+    // Receive up to `length` bytes into a buffer. Returns: 
+    // > 0 : bytes read
+    //   0 : peer closed
+    // < 0 : error
+    std::ptrdiff_t Receive(SocketIdentifier socket, void* buffer, std::size_t length);
+
     // Closes a socket safely
     void CloseSocket(SocketIdentifier socket);
 

@@ -146,6 +146,27 @@ namespace core {
         return n;
     }
 
+    SocketIdentifier AcceptConnection(SocketIdentifier listening_socket) {
+        sockaddr_storage addr{};
+        socklen_t len = sizeof(addr);
+        SocketIdentifier client_socket = ::accept(listening_socket, reinterpret_cast<sockaddr*>(&addr), &len);
+        if (client_socket < 0) {
+            // TODO: Log accept() failure
+            // Check errno, it will be an error or EAGAIN/EWOULDBLOCK
+            //It could be a real error or just no more clients to accept
+        }
+        return client_socket;
+    }
+
+    std::ptrdiff_t Receive(SocketIdentifier socket, void* buffer, std::size_t length) {
+        auto n = ::recv(socket, buffer, length, 0);
+        if (n < 0) {
+            // TODO: Log recv() failure with errno unless it is EAGAIN/EWOULDBLOCK/EINTR
+            // Reason: network error, fd closed, or would block in non blocking mode
+        }
+        return static_cast<std::ptrdiff_t>(n); // Cast for portablilty
+    }
+
     void CloseSocket(SocketIdentifier socket) {
         if (socket >= 0) {
             if (::close(socket) < 0) {

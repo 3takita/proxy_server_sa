@@ -1,11 +1,12 @@
 #ifndef PROXY_SERVER_SERVER_CONNECITON_H_
 #define PROXY_SERVER_SERVER_CONNECTION_H_
 
-#include "core/network.h"
+#include "network.h"
 
 #include <unordered_map>
 #include <vector>
 #include <cstddef>
+
 
 namespace server {
 
@@ -20,7 +21,7 @@ namespace server {
 
     struct Connection {
         core::SocketIdentifier id{};
-        std::vector<std::byte> recieve_buffer;
+        std::vector<std::byte> receive_buffer;
         bool closed{false};
     };
 
@@ -29,16 +30,14 @@ namespace server {
     // Accept as many queued connections as possible
     // Set them to non-blocking
     // Register for read events, and add them to a map of connections
-    void AcceptNewConnections(core::SocketIdentifier listen_socket_id,
-                              core::EventPollerIdentifier poller,
-                              ConnectionMap& clients);
+    ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, ConnectionMap& clients);
     
     // Read avail bytes from the socket into its connection struct buffer
     // Closes & removes the connection from clients on peer close or fatal error
-    void OnClientRead(core::SocketIdentifier id, ConnectionMap& clients);
+    ConnectionResult OnClientRead(core::SocketIdentifier socket, ConnectionMap& clients);
 
     // Closes a specific client and removes them from the map
-    void CloseAndRemove(core::SocketIdentifier id, ConnectionMap& clients);
+    void CloseAndRemove(core::SocketIdentifier socket, ConnectionMap& clients);
 
 } // namespace server
 
