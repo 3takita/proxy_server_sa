@@ -1,6 +1,7 @@
 #include "proxy_server.h"
 
 #include <cstring>
+#include <iostream> // Remove after Logger exists
 
 namespace server {
 
@@ -83,7 +84,27 @@ namespace server {
                 // 1. Handle New Connections
                 // ----------------------------
                 if (fd == socket_) {
-                    (void)AcceptNewConnections(socket_, poller_, clients_);
+                    std::vector<core::SocketIdentifier> accepted;
+                    (void)AcceptNewConnections(socket_, poller_, clients_, &accepted);
+
+                    // TODO: Remove the accepted socket vector once the logger is in place
+                    // Do not change the AcceptNewConnections signature nor the functionality
+                    // of AcceptNewConnections other than adding in the Logger
+                    // Remove the printout here but keep the vector
+                    // We can revisit this when the Logger is in place
+
+                    for (auto a : accepted) {
+                        std::string ip;
+                        uint16_t port = 0;
+                        if (core::SocketToAddress(a, ip, port)) {
+                            std::cout << "[+] New connection " << a
+                                    << " from " << ip << ":" << port << std::endl;
+                        } else {
+                            std::cout << "[+] New connection " << a
+                                    << " (address unavailable)" << std::endl;
+                        }
+                    }
+
                     continue;
                 }
 

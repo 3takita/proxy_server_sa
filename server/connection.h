@@ -32,7 +32,8 @@ namespace server {
     // Accept as many queued connections as possible
     // Set them to non-blocking
     // Register for read events, and add them to a map of connections
-    ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, ConnectionMap& clients);
+    ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
+                                            ConnectionMap& clients, std::vector<core::SocketIdentifier>* accepted_out);
     
     // Read available bytes from the socket into its connection struct buffer
     // Closes & removes the connection from clients on peer close or fatal error

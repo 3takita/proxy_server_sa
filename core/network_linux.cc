@@ -214,4 +214,22 @@ namespace core {
         }
     }
 
+    bool SocketToAddress(SocketIdentifier socket, std::string& ip, uint16_t& port) {
+        sockaddr_storage ss{};
+        socklen_t len = sizeof(ss);
+        if (::getpeername(socket, reinterpret_cast<sockaddr*>(&ss), &len) < 0) {
+            return false;
+        }
+
+        char host[NI_MAXHOST];
+        char serv[NI_MAXSERV];
+
+        int rc = ::getnameinfo(reinterpret_cast<sockaddr*>(&ss), len, host, sizeof(host), serv, sizeof(serv), NI_NUMERICHOST | NI_NUMERICHOST);
+        if (rc != 0) return false;
+
+        ip = host;
+        port = static_cast<uint16_t>(std::stoi(serv));
+        return true;
+    }
+
 } // namespace core

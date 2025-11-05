@@ -85,6 +85,9 @@ namespace core {
     // Closes a socket safely
     void CloseSocket(SocketIdentifier socket);
 
+    // Returns true and fills ip and port on success
+    bool SocketToAddress(SocketIdentifier socket, std::string& ip, uint16_t& port);
+
 }   // namespace core
 
 #endif // PROXY_SERVER_CORE_NETWORK_H_

@@ -6,7 +6,8 @@
 
 namespace server {
 
-    ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, ConnectionMap& clients) {
+        ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
+                                            ConnectionMap& clients, std::vector<core::SocketIdentifier>* accepted_out) {
         
         while (true) {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
@@ -33,6 +34,8 @@ namespace server {
             c.id = client_socket;
             c.receive_buffer.reserve(core::k_8KB);
             clients.emplace(client_socket, std::move(c));
+
+            if (accepted_out != nullptr) accepted_out->push_back(client_socket);
 
             // TODO: Log that the client is accepted and registered with epoll
         }
