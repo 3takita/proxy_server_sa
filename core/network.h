@@ -2,6 +2,7 @@
 #define PROXY_SERVER_CORE_NETWORK_H_
 
 #include <string>
+#include <cstdint>
 
 namespace core {
 
@@ -57,6 +58,10 @@ namespace core {
     // Returns true on success, false on failure
     bool RegisterReadEvent(EventPollerIdentifier poller, SocketIdentifier socket);
 
+    // Changes the socket to readable or writable
+    // Returns true on success
+    bool UpdateEventInterest(EventPollerIdentifier poller, SocketIdentifier socket, bool readable, bool writable);
+
     // Waits for socket events
     // Returns the number of triggered events
     // The parameter `events` and `max_events` determine output capacity
@@ -71,10 +76,15 @@ namespace core {
     //   0 : peer closed
     // < 0 : error
     std::ptrdiff_t Receive(SocketIdentifier socket, void* buffer, std::size_t length);
+    
+    // Send up to `length` bytes from buffer
+    // > 0 : bytes written
+    // <=0 : error or would-block on non-blocking socket
+    std::ptrdiff_t Send(SocketIdentifier socket, const void* buffer, std::size_t length);
 
     // Closes a socket safely
     void CloseSocket(SocketIdentifier socket);
 
 }   // namespace core
 
-#endif //PROXY_SERVER_CORE_NETWORK_H_
+#endif // PROXY_SERVER_CORE_NETWORK_H_

@@ -2,7 +2,6 @@
 
 #include <vector>
 
-#include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -102,7 +101,7 @@ namespace core {
         if (flags == -1) {
             // TODO: Log fcntl(GET_FL) error
             // Reason: invalid file descriptor (Socket ID) or kernel issue
-            // Coninuing may cause blocking in the loop which will tank performance
+            // Continuing may cause blocking in the loop which will tank performance
             return false;
         }
         if (::fcntl(socket, F_SETFL, flags | O_NONBLOCK) == -1) {
@@ -134,6 +133,22 @@ namespace core {
         return true;
     }
 
+    bool UpdateEventInterest(EventPollerIdentifier poller, SocketIdentifier socket, bool readable, bool writable) {
+        // This function translates the socket's desired interests (read/write)
+        // into native epoll flags
+        epoll_event ev{};
+        ev.data.fd = socket;
+        ev.events = 0;
+        if (readable) ev.events |= EPOLLIN;
+        if (writable) ev.events |= EPOLLOUT;
+
+        if (::epoll_ctl(poller, EPOLL_CTL_MOD, socket, &ev) < 0) {
+            // TODO: Log epoll_ctl(MOD) failure with errno, poller handle, and socket fd
+            return false;
+        }
+        return true;
+    }
+
     int WaitForEvents(EventPollerIdentifier poller, PollEvent* out_events, int max_events, int timeout_ms) {
         std::vector<epoll_event> tempEvents(static_cast<std::size_t>(max_events));
         int n = ::epoll_wait(poller, tempEvents.data(), max_events, timeout_ms);
@@ -146,7 +161,7 @@ namespace core {
             // Reason: poller invalidation or system call error
             return -1;
         }
-        if (n <= 0) return n; // o or EINTR --> propage to called
+        if (n <= 0) return n; // 0 or EINTR --> propage to called
 
         for (int i = 0; i < n; i++) {
             uint32_t mask = 0;
@@ -171,7 +186,7 @@ namespace core {
         if (client_socket < 0) {
             // TODO: Log accept() failure
             // Check errno, it will be an error or EAGAIN/EWOULDBLOCK
-            //It could be a real error or just no more clients to accept
+            // It could be a real error or just no more clients to accept
         }
         return client_socket;
     }
@@ -182,7 +197,12 @@ namespace core {
             // TODO: Log recv() failure with errno unless it is EAGAIN/EWOULDBLOCK/EINTR
             // Reason: network error, fd closed, or would block in non blocking mode
         }
-        return static_cast<std::ptrdiff_t>(n); // Cast for portablilty
+        return static_cast<std::ptrdiff_t>(n);
+    }
+
+    std::ptrdiff_t Send(SocketIdentifier socket, const void* buffer, std::size_t length) {
+        auto n = ::send(socket, buffer, length, 0);
+        return static_cast<std::ptrdiff_t>(n);
     }
 
     void CloseSocket(SocketIdentifier socket) {

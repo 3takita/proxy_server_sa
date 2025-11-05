@@ -1,17 +1,10 @@
 #include "connection.h"
+#include "network_constants.h"
 
-#include <sys/socket.h>
-#include <netdb.h>
-#include <unistd.h>
 #include <cerrno>
 #include <cstring>
 
-
-
 namespace server {
-
-    constexpr std::size_t k_8KB = 8 * 1024;
-    constexpr std::size_t k_16KB = 16 * 1024;
 
     ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, ConnectionMap& clients) {
         
@@ -38,7 +31,7 @@ namespace server {
 
             Connection c;
             c.id = client_socket;
-            c.receive_buffer.reserve(k_8KB);
+            c.receive_buffer.reserve(core::k_8KB);
             clients.emplace(client_socket, std::move(c));
 
             // TODO: Log that the client is accepted and registered with epoll
@@ -52,11 +45,11 @@ namespace server {
             // TODO: Log that client was not found
             // It is likely the client was already closed
             core::CloseSocket(socket);
-            return ConnectionResult::UnkownError;
+            return ConnectionResult::UnknownError;
         }
 
         Connection& connection = it->second;
-        std::byte buffer[k_16KB];
+        std::byte buffer[core::k_16KB];
 
         while (true) {
             std::ptrdiff_t n = core::Receive(socket, buffer, sizeof(buffer));
@@ -85,6 +78,36 @@ namespace server {
             return ConnectionResult::PeerClosed;
         }
 
+        return ConnectionResult::OK;
+    }
+
+    ConnectionResult OnClientWrite(core::SocketIdentifier socket, ConnectionMap& clients) {
+        auto it = clients.find(socket);
+        if (it == clients.end()) {
+            // TODO: Log that client was not found
+            // It is likely the client was already closed
+            core::CloseSocket(socket);
+            return ConnectionResult::UnknownError;
+        }
+
+        Connection& connection = it->second;
+
+        // Drain as many bytes as the kernel will accept
+        // We are currently using a single contiguous vector
+        // However we may want to try something different like a ring buffer in the future
+        while (!connection.send_buffer.empty()) {
+            const void* data = connection.send_buffer.data();
+            const std::size_t data_length = connection.send_buffer.size();
+
+            std::ptrdiff_t sent = core::Send(socket, data, data_length);
+            if (sent > 0) {
+                connection.send_buffer.erase(connection.send_buffer.begin(),
+                                             connection.send_buffer.begin() + static_cast<std::size_t>(sent));
+                continue; // Try sending more during this event
+            }
+            // sent <= 0: would-block or other error, can stop trying to send
+            break;
+        }
         return ConnectionResult::OK;
     }
 

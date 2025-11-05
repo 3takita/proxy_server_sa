@@ -1,4 +1,4 @@
-#ifndef PROXY_SERVER_SERVER_CONNECITON_H_
+#ifndef PROXY_SERVER_SERVER_CONNECTION_H_
 #define PROXY_SERVER_SERVER_CONNECTION_H_
 
 #include "network.h"
@@ -14,9 +14,9 @@ namespace server {
         OK = 0,
         AcceptFailed,
         EpollRegisterFailed,
-        RecieveFailed,
+        ReceiveFailed,
         PeerClosed,
-        UnkownError
+        UnknownError
     };
 
     struct Connection {
@@ -34,9 +34,13 @@ namespace server {
     // Register for read events, and add them to a map of connections
     ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, ConnectionMap& clients);
     
-    // Read avail bytes from the socket into its connection struct buffer
+    // Read available bytes from the socket into its connection struct buffer
     // Closes & removes the connection from clients on peer close or fatal error
     ConnectionResult OnClientRead(core::SocketIdentifier socket, ConnectionMap& clients);
+
+    // Attempt to write as many bytes as possible from the send_buffer to the socket
+    // Does not close the socket. The caller decides whether to keep-alive or close the connection
+    ConnectionResult OnClientWrite(core::SocketIdentifier socket, ConnectionMap& clients);
 
     // Closes a specific client and removes them from the map
     void CloseAndRemove(core::SocketIdentifier socket, ConnectionMap& clients);
