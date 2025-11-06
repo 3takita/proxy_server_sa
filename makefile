@@ -1,11 +1,11 @@
 CXX := g++
 CXXFLAGS := -std=c++20 -Wall -Wextra -O2
-INCLUDES := -Icore -Iserver -Iapp
+INCLUDES := -Icore -Iserver
 
 BIN_DIR := ./bins
 TARGET  := $(BIN_DIR)/proxy_server
 
-SOURCES := app/*.cc server/*.cc core/*.cc
+SOURCES := server/*.cc core/*.cc
 
 run:
 	mkdir -p $(BIN_DIR)
