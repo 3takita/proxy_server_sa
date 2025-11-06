@@ -112,8 +112,8 @@ namespace server {
                 // 2. READABLE: read and stage response when ready
                 // ----------------------------
                 if (mask & core::kEventReadable) {
-                    ConnectionResult read_result = OnClientRead(fd, clients_);
-                    if (read_result != ConnectionResult::OK) {
+                    core::ConnectionResult read_result = OnClientRead(fd, clients_);
+                    if (read_result != core::ConnectionResult::OK) {
                         // OnClientRead handles socket close
                         continue; 
                     }
@@ -124,7 +124,7 @@ namespace server {
                         continue; 
                     }
 
-                    Connection& connection = it->second;
+                    core::Connection& connection = it->second;
 
                     // TODO:
                     // Parse http or just send through if not http
@@ -169,7 +169,7 @@ namespace server {
                         // Socket could have been closed / erased elsewhere
                         continue;
                     }
-                    Connection& connection = it->second;
+                    core::Connection& connection = it->second;
 
                     // Attempt to drain as much as possible durring this event from the send_buffer
                     (void)OnClientWrite(fd, clients_);

@@ -4,7 +4,7 @@
 #include <cerrno>
 #include <cstring>
 
-namespace server {
+namespace core {
 
         ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
                                             ConnectionMap& clients, std::vector<core::SocketIdentifier>* accepted_out) {
@@ -126,4 +126,4 @@ namespace server {
         }
     }
 
-} // namespace server
+} // namespace core

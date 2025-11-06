@@ -22,7 +22,7 @@ namespace server {
         int max_events_{ 16 };
         core::SocketIdentifier socket_{};
         core::EventPollerIdentifier poller_{};
-        ConnectionMap clients_;
+        core::ConnectionMap clients_;
 
         void CleanUpResources();
     };
