@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <signal.h> // for ignoring SIGPIPE
 
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -15,10 +16,12 @@
 namespace server {
 
     void ProxyServer::Run() {
-        
+       signal(SIGPIPE, SIG_IGN); // ignore SIGPIPE to avoid crashes on closed connections
         (void)core::InitializeNetwork();
+        // modified
+        const auto& cfg = core::GetConfig();
+socket_ = core::CreateListeningSocket(cfg.bind_host, cfg.port, cfg.backlog);
 
-        socket_ = core::CreateListeningSocket("", port_, backlog_);
 
         if (socket_ < 0) {
             // TODO: Log failed to create a listening socket on port_
@@ -39,16 +42,13 @@ namespace server {
             CleanUpResources();
             return;
         }
-
-        epoll_event events[max_events_];
+        // modified
+        epoll_event events[cfg.max_events];
 
         while (true) {
             int n = core::WaitForEvents(poller_, events, max_events_, -1); 
             if (n < 0) {
-                // TODO: Log epoll_wait error
-                // This is super rare but if it happens we may want to re-create epoll
-                // For now just exit
-                break;
+                continue; // skip instead of breaking if EINTR
             } else if (n == 0) {
                 // Not expected with timout = -1
                 // Keep for future use but we will probably
@@ -98,7 +98,8 @@ namespace server {
 
     void ProxyServer::CleanUpResources() {
         if (poller_ > 0) {
-            core::CloseSocket(poller_);
+            // Modification: since poller_ is an epoll descriptor, not a socet, it should be used directly
+            ::Close(poller_);
             poller_ = 0;
         }
 
