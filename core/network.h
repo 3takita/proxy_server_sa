@@ -3,6 +3,7 @@
 
 #include <string>
 #include <cstdint>
+#include <cstddef>
 
 namespace core {
 

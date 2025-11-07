@@ -48,4 +48,4 @@ namespace core {
 
 } // namespace core
 
-#endif // PROXY_SERVER_SERVER_CONNECTION_H_
+#endif // PROXY_SERVER_CORE_CONNECTION_H_
