@@ -1,6 +1,7 @@
 # Build artifacts
-/objs/
-/bins/
+/obj/
+/bin/
+/release/
 
 # Common intermediate files
 *.o

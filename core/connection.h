@@ -1,5 +1,5 @@
-#ifndef PROXY_SERVER_SERVER_CONNECTION_H_
-#define PROXY_SERVER_SERVER_CONNECTION_H_
+#ifndef PROXY_SERVER_CORE_CONNECTION_H_
+#define PROXY_SERVER_CORE_CONNECTION_H_
 
 #include "network.h"
 
@@ -8,7 +8,7 @@
 #include <cstddef>
 
 
-namespace server {
+namespace core {
 
     enum ConnectionResult {
         OK = 0,
@@ -46,6 +46,6 @@ namespace server {
     // Closes a specific client and removes them from the map
     void CloseAndRemove(core::SocketIdentifier socket, ConnectionMap& clients);
 
-} // namespace server
+} // namespace core
 
-#endif // PROXY_SERVER_SERVER_CONNECTION_H_
+#endif // PROXY_SERVER_CORE_CONNECTION_H_
