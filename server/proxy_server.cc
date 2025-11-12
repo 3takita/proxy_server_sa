@@ -1,4 +1,7 @@
 #include "proxy_server.h"
+#include "protocol/detector.h"
+#include "protocol/protocol.h"
+#include "protocol/socks5.h"
 
 #include <cstring>
 #include <iostream> // Remove after Logger exists
@@ -57,7 +60,7 @@ namespace server {
                 // 1. If this is the listening socket: accept new clients and register them for READ.
                 // 2. For a client socket:
                 //    - On READABLE: read and accumulate bytes into receive_buffer until EAGAIN.
-                //      When we decide we have a full request (e.g., detected "\r\n\r\n"):
+                //      When we decide we have a full request:
                 //        a) Either fill send_buffer from cache or from an upstream fetch,
                 //        b) Or generate a response locally (what we do here),
                 //        c) Then flip the poller interest to WRITABLE so we can flush it.
@@ -76,7 +79,7 @@ namespace server {
                         running = false;
                         break;
                     }
-                    CloseAndRemove(fd, clients_);
+                    CloseAndRemove(fd, connections_);
                     continue;
                 }
 
@@ -85,7 +88,7 @@ namespace server {
                 // ----------------------------
                 if (fd == socket_) {
                     std::vector<core::SocketIdentifier> accepted;
-                    (void)AcceptNewConnections(socket_, poller_, clients_, &accepted);
+                    (void)AcceptNewClientConnection(socket_, poller_, connections_, &accepted);
 
                     // TODO: Remove the accepted socket vector once the logger is in place
                     // Do not change the AcceptNewConnections signature nor the functionality
@@ -112,81 +115,109 @@ namespace server {
                 // 2. READABLE: read and stage response when ready
                 // ----------------------------
                 if (mask & core::kEventReadable) {
-                    core::ConnectionResult read_result = OnClientRead(fd, clients_);
+                    core::ConnectionResult read_result = OnClientRead(fd, connections_);
                     if (read_result != core::ConnectionResult::OK) {
                         // OnClientRead handles socket close
                         continue; 
                     }
 
-                    auto it = clients_.find(fd);
-                    if (it == clients_.end()) {
+                    auto it = connections_.find(fd);
+                    if (it == connections_.end()) {
                         // Connection may have been closed or removed
                         continue; 
                     }
 
                     core::Connection& connection = it->second;
 
-                    // TODO:
-                    // Parse http or just send through if not http
-                    // Check cache for requested resource
+                    // Uncomment below to see user requests outputed to the console
+                    // std::string message = std::string(reinterpret_cast<const char*>(connection.receive_buffer.data()), connection.receive_buffer.size());
+                    // std::cout << message << std::endl;
 
-                    // TODO: Remove later when functionality is implemented
-                    // -----------------------------------------------------
-                    static const char kResponse[] =
-                        "HTTP/1.1 200 OK\r\n"
-                        "Content-Type: text/plain\r\n"
-                        "Content-Length: 30\r\n"
-                        "\r\n"
-                        "Hello from your proxy server!\n";
+                    if (connection.role_ == core::ConnectionRole::Client) {
 
+                        if (connection.protocol_ == nullptr) {
+                            // Set the protocol for this connection
+                            core::protocol::ProtocolType protocol;
+                            if(core::protocol::ProbeProtocol(connection.receive_buffer_, protocol)) {
+                                switch(protocol) {
+                                    case core::protocol::ProtocolType::Socks4:
+                                        std::cout << "Socks4" << std::endl; // Not supported yet
+                                        CloseAndRemove(fd, connections_); 
+                                        break;
+                                    case core::protocol::ProtocolType::Socks4a:
+                                        std::cout << "Socks4a" << std::endl; // Not supported yet
+                                        CloseAndRemove(fd, connections_);
+                                        break;
+                                    case core::protocol::ProtocolType::Socks5:
+                                        std::cout << "Socks5" << std::endl;
+                                        connection.protocol_ = std::make_unique<core::protocol::Socks5>();
+                                        break;
+                                    case core::protocol::ProtocolType::Http:
+                                        std::cout << "Http" << std::endl; // Not supported yet
+                                        CloseAndRemove(fd, connections_);
+                                        break;
+                                    case core::protocol::ProtocolType::Unsupported:
+                                        [[fallthrough]];
+                                    case core::protocol::ProtocolType::Unknown:
+                                        [[fallthrough]];
+                                    default:
+                                        std::cout << "Unknown Protocol Type" << std::endl; // Not supported at all
+                                        HealthResponse(connection);
+                                        //CloseAndRemove(fd, connections_);
+                                        
+                                        break;
+                                }
+                            } else {
+                                // Not enough bytes
+                                // TODO: Decide if we want to log something here
+                            }
+                        }
 
-                    const std::size_t kLen = sizeof(kResponse) - 1;
-                    const std::size_t old_size = connection.send_buffer.size();
-                    connection.send_buffer.resize(old_size + kLen);
-                    std::memcpy(connection.send_buffer.data() + old_size, kResponse, kLen);
-                    connection.want_write = true;
-
-                    // TODO:
-                    // We can add some sort of rate limiting here later on
-                    // something where if the buffer has more data than a set amount
-                    // we drop all incoming data from this socket (read = false)
+                        // If the connection has a protocol set, we can do work with it
+                            if (connection.protocol_ != nullptr) {
+                                connection.protocol_->OnReadable(connection, connections_, poller_);
+                            }
+                    }
 
                     (void)core::UpdateEventInterest(
                         poller_,
                         fd,
                         /*readable=*/true, // Replace with some rate limiting check
-                        /*writable=*/true
+                        /*writable=*/connection.want_write_
                     );
-
                 }
 
                 // ----------------------------
                 // 3. WRITABLE: drain send_buffer
                 // ----------------------------
                 if (mask & core::kEventWritable) {
-                    auto it = clients_.find(fd);
-                    if (it == clients_.end()) {
+                    auto it = connections_.find(fd);
+                    if (it == connections_.end()) {
                         // Socket could have been closed / erased elsewhere
                         continue;
                     }
                     core::Connection& connection = it->second;
+      
+                    if (connection.protocol_ != nullptr) {
+                        connection.protocol_->OnWritable(connection, connections_, poller_);
+                    }
 
                     // Attempt to drain as much as possible durring this event from the send_buffer
-                    (void)OnClientWrite(fd, clients_);
+                    (void)OnClientWrite(fd, connections_);
 
-                    if (!connection.send_buffer.empty()) {
+                    if (!connection.send_buffer_.empty()) {
                         // We still have pending data to send so keep this socket WRITABLE
-                        connection.want_write = true;
+                        connection.want_write_ = true;
                     } else {
                         // All data is sent
-                        connection.want_write = false;
+                        connection.want_write_ = false;
                     }
 
                     (void)core::UpdateEventInterest(
                         poller_,
                         fd,
                         /*readable=*/true, // Add some sort of rate limiting later
-                        /*writable=*/connection.want_write
+                        /*writable=*/connection.want_write_
                     );
                  
                 }
@@ -200,10 +231,10 @@ namespace server {
     void ProxyServer::CleanUpResources() {
 
         // Close all client sockets
-        for (auto it = clients_.begin(); it != clients_.end(); ) {
+        for (auto it = connections_.begin(); it != connections_.end(); ) {
             const core::SocketIdentifier socket = it->first;
             core::CloseSocket(socket);
-            it = clients_.erase(it); //Returns the next it
+            it = connections_.erase(it); //Returns the next it
         }
 
         // Close poller
@@ -219,6 +250,22 @@ namespace server {
         }
 
         core::ShutDownNetwork();
+    }
+
+    void ProxyServer::HealthResponse(core::Connection& connection) {
+        static const char kResponse[] =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 30\r\n"
+            "\r\n"
+            "Hello from your proxy server!\n";
+
+
+        const std::size_t kLen = sizeof(kResponse) - 1;
+        const std::size_t old_size = connection.send_buffer_.size();
+        connection.send_buffer_.resize(old_size + kLen);
+        std::memcpy(connection.send_buffer_.data() + old_size, kResponse, kLen);
+        connection.want_write_ = true;
     }
 
 
