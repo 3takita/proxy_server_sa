@@ -2,6 +2,7 @@
 #include "protocol/detector.h"
 #include "protocol/protocol.h"
 #include "protocol/socks5.h"
+#include "utils/string_utils.h"
 
 #include <cstring>
 #include <iostream> // Remove after Logger exists
@@ -130,8 +131,7 @@ namespace server {
                     core::Connection& connection = it->second;
 
                     // Uncomment below to see user requests outputed to the console
-                    // std::string message = std::string(reinterpret_cast<const char*>(connection.receive_buffer.data()), connection.receive_buffer.size());
-                    // std::cout << message << std::endl;
+                    std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
 
                     if (connection.role_ == core::ConnectionRole::Client) {
 
