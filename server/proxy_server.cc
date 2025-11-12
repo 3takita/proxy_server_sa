@@ -6,6 +6,9 @@
 
 #include <cstring>
 #include <iostream> // Remove after Logger exists
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace server {
 
@@ -87,14 +90,28 @@ namespace server {
                     // Remove the printout here but keep the vector
                     // We can revisit this when the Logger is in place
 
+                    // Remove later
                     for (auto a : accepted) {
                         std::string ip;
                         uint16_t port = 0;
+
+                        auto now = std::chrono::system_clock::now();
+                        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+                        std::tm tm_buf{};
+                    #ifdef _WIN32
+                        localtime_s(&tm_buf, &now_c);
+                    #else
+                        localtime_r(&now_c, &tm_buf);
+                    #endif
+
+                        std::ostringstream timestamp;
+                        timestamp << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+
                         if (core::SocketToAddress(a, ip, port)) {
-                            std::cout << "[+] New connection " << a
+                            std::cout << "[" << timestamp.str() << "] [+] New connection " << a
                                     << " from " << ip << ":" << port << std::endl;
                         } else {
-                            std::cout << "[+] New connection " << a
+                            std::cout << "[" << timestamp.str() << "] [+] New connection " << a
                                     << " (address unavailable)" << std::endl;
                         }
                     }
@@ -120,7 +137,8 @@ namespace server {
                     }
 
                     // Uncomment below to see user requests outputed to the console
-                    std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
+                    //std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
+                    std::cout << core::utils::bytesToHex(connection.receive_buffer_) << std::endl;
 
                     if (connection.role_ == core::ConnectionRole::Client) {
 

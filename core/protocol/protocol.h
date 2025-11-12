@@ -22,13 +22,11 @@ namespace core::protocol {
         // Implementation may consume bytes from connection.receive_buffer, and/or
         // append bytes to connection.send_buffer and set connection.want_write = true.
         // They may also register/unregister/update interests via poller as needed
-        virtual void OnReadable(Connection& connection,
-                                EventPollerIdentifier poller) = 0;
+        virtual void OnReadable(Connection& connection, EventPollerIdentifier poller) = 0;
 
         // Called when the socket associated with connection is writable.
         // Implementation relys on the server to drain the send_buffer
-        virtual void OnWritable(Connection& connection,
-                                EventPollerIdentifier poller) = 0;
+        virtual void OnWritable(Connection& connection, EventPollerIdentifier poller) = 0;
     };
 
 } // namespace core::protocol
