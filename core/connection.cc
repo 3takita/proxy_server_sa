@@ -6,8 +6,9 @@
 
 namespace core {
 
-        ConnectionResult AcceptNewConnections(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
-                                            ConnectionMap& clients, std::vector<core::SocketIdentifier>* accepted_out) {
+
+    ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
+                                            ConnectionMap& connections, std::vector<core::SocketIdentifier>* accepted_out) {
         
         while (true) {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
@@ -31,9 +32,10 @@ namespace core {
             }
 
             Connection c;
-            c.id = client_socket;
-            c.receive_buffer.reserve(core::k_8KB);
-            clients.emplace(client_socket, std::move(c));
+            c.id_ = client_socket;
+            c.role_ = ConnectionRole::Client;
+            c.receive_buffer_.reserve(core::k_8KB);
+            connections.emplace(client_socket, std::move(c));
 
             if (accepted_out != nullptr) accepted_out->push_back(client_socket);
 
@@ -42,9 +44,9 @@ namespace core {
     }
     
 
-    ConnectionResult OnClientRead(core::SocketIdentifier socket, ConnectionMap& clients) {
-        auto it = clients.find(socket);
-        if (it == clients.end()) {
+    ConnectionResult OnClientRead(core::SocketIdentifier socket, ConnectionMap& connections) {
+        auto it = connections.find(socket);
+        if (it == connections.end()) {
             // TODO: Log that client was not found
             // It is likely the client was already closed
             core::CloseSocket(socket);
@@ -57,15 +59,15 @@ namespace core {
         while (true) {
             std::ptrdiff_t n = core::Receive(socket, buffer, sizeof(buffer));
             if (n > 0) {
-                const std::size_t old = connection.receive_buffer.size();
-                connection.receive_buffer.resize(old + static_cast<std::size_t>(n));
-                std::memcpy(connection.receive_buffer.data() + old, buffer, static_cast<std::size_t>(n));
+                const std::size_t old = connection.receive_buffer_.size();
+                connection.receive_buffer_.resize(old + static_cast<std::size_t>(n));
+                std::memcpy(connection.receive_buffer_.data() + old, buffer, static_cast<std::size_t>(n));
                 continue; // drain until we would block
             }
 
             if (n == 0) {
                 // TODO: Log peer closed connection gracefully
-                connection.closed = true;
+                connection.closed_ = true;
                 break;
             }
 
@@ -74,9 +76,9 @@ namespace core {
             break;
         }
 
-        if (connection.closed) {
+        if (connection.closed_) {
             core::CloseSocket(socket);
-            clients.erase(it);
+            connections.erase(it);
             // TODO: Log client closed gracefully
             return ConnectionResult::PeerClosed;
         }
@@ -84,9 +86,9 @@ namespace core {
         return ConnectionResult::OK;
     }
 
-    ConnectionResult OnClientWrite(core::SocketIdentifier socket, ConnectionMap& clients) {
-        auto it = clients.find(socket);
-        if (it == clients.end()) {
+    ConnectionResult OnClientWrite(core::SocketIdentifier socket, ConnectionMap& connections) {
+        auto it = connections.find(socket);
+        if (it == connections.end()) {
             // TODO: Log that client was not found
             // It is likely the client was already closed
             core::CloseSocket(socket);
@@ -98,14 +100,14 @@ namespace core {
         // Drain as many bytes as the kernel will accept
         // We are currently using a single contiguous vector
         // However we may want to try something different like a ring buffer in the future
-        while (!connection.send_buffer.empty()) {
-            const void* data = connection.send_buffer.data();
-            const std::size_t data_length = connection.send_buffer.size();
+        while (!connection.send_buffer_.empty()) {
+            const void* data = connection.send_buffer_.data();
+            const std::size_t data_length = connection.send_buffer_.size();
 
             std::ptrdiff_t sent = core::Send(socket, data, data_length);
             if (sent > 0) {
-                connection.send_buffer.erase(connection.send_buffer.begin(),
-                                             connection.send_buffer.begin() + static_cast<std::size_t>(sent));
+                connection.send_buffer_.erase(connection.send_buffer_.begin(),
+                                             connection.send_buffer_.begin() + static_cast<std::size_t>(sent));
                 continue; // Try sending more during this event
             }
             // sent <= 0: would-block or other error, can stop trying to send
@@ -114,11 +116,11 @@ namespace core {
         return ConnectionResult::OK;
     }
 
-    void CloseAndRemove(core::SocketIdentifier socket, ConnectionMap& clients) {
-        auto it = clients.find(socket);
-        if (it != clients.end()) {
+    void CloseAndRemove(core::SocketIdentifier socket, ConnectionMap& connections) {
+        auto it = connections.find(socket);
+        if (it != connections.end()) {
             core::CloseSocket(socket);
-            (void)clients.erase(it);
+            (void)connections.erase(it);
             // TODO: Log that client socket is closed
         } else {
             core::CloseSocket(socket);
