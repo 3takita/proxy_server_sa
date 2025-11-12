@@ -12,6 +12,7 @@ namespace core::utils {
             unsigned char value = static_cast<unsigned char>(b);
 
             // Only print readable characters and new line chars
+            // https://www.asciitable.com/
             if ((value >= 0x20 && value <= 0x7E) || value == 0x0D || value == 0x0A) {
                 // Printable ASCII character
                 oss << static_cast<char>(value);

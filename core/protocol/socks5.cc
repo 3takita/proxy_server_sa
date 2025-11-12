@@ -6,15 +6,13 @@
 namespace core::protocol {
 
 
-    void Socks5::OnReadable(Connection& connection, ConnectionMap& all, EventPollerIdentifier poller) {
+    void Socks5::OnReadable(Connection& connection, EventPollerIdentifier poller) {
         (void)connection;
-        (void)all;
         (void)poller;
     }
 
-    void Socks5::OnWritable(Connection& connection, ConnectionMap& all, EventPollerIdentifier poller) {
+    void Socks5::OnWritable(Connection& connection, EventPollerIdentifier poller) {
         (void)connection;
-        (void)all;
         (void)poller;
     }
 

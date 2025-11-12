@@ -4,6 +4,8 @@
 #include "network.h"
 #include "connection.h"
 
+#include <unordered_map>
+
 // I know the header define looks long and weird
 // but it follows the format
 // Project_Name_Namespace_File_Name
@@ -22,7 +24,7 @@ namespace server {
         int max_events_{ 16 };
         core::SocketIdentifier socket_{};
         core::EventPollerIdentifier poller_{};
-        core::ConnectionMap connections_;
+        std::unordered_map<core::SocketIdentifier, core::Connection> connections_;
 
         void CleanUpResources();
         void HealthResponse(core::Connection& connection);

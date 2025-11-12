@@ -16,10 +16,25 @@ namespace core::protocol {
         Unsupported
     };
 
+    class Detector {
+    public:
+
+        bool ProbeProtocol(const std::vector<std::byte>& buf, ProtocolType* out_type) const;
+
+    private:
+        
+        inline bool IsSocks4(const std::vector<std::byte>& buf) const;
+        inline bool IsSocks4a(const std::vector<std::byte>& buf) const;
+        inline bool IsSocks5(const std::vector<std::byte>& buf) const;
+
+        bool IsHttp(const std::vector<std::byte>& buf) const;
+
+    };
+
     // This attempts to figure out which protocol the client sent to the server
     // It returns true if buf has enough bytes, and false if buf does not have
     // enough data
-    bool ProbeProtocol(const std::vector<std::byte>& buf, ProtocolType& out_type);
+    
 
 } // namespace protocol
 

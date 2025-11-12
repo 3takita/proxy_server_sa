@@ -55,22 +55,6 @@ namespace server {
                 const auto fd = events[i].fd;
                 const auto mask = events[i].mask;
 
-                // ================================
-                // Normal Proxy Server Flow Overview
-                // ================================
-                // 1. If this is the listening socket: accept new clients and register them for READ.
-                // 2. For a client socket:
-                //    - On READABLE: read and accumulate bytes into receive_buffer until EAGAIN.
-                //      When we decide we have a full request:
-                //        a) Either fill send_buffer from cache or from an upstream fetch,
-                //        b) Or generate a response locally (what we do here),
-                //        c) Then flip the poller interest to WRITABLE so we can flush it.
-                //    - On WRITABLE: write as many bytes as the kernel accepts from send_buffer.
-                //      If we fully flush:
-                //        a) Close (simple path now), or
-                //        b) Switch back to READ interest for HTTP keep-alive (future).
-
-
                 // ----------------------------
                 // Event Error Handling
                 // ----------------------------
@@ -80,7 +64,13 @@ namespace server {
                         running = false;
                         break;
                     }
-                    CloseAndRemove(fd, connections_);
+                    
+                    auto it = connections_.find(fd);
+                    if (it != connections_.end()) {
+                        connections_.erase(it);
+                    } else {
+                        core::CloseSocket(fd);
+                    }
                     continue;
                 }
 
@@ -112,70 +102,35 @@ namespace server {
                     continue;
                 }
 
+                //Get the connection 
+                auto it = connections_.find(fd);
+                if (it == connections_.end()) continue;
+                core::Connection& connection = it->second;
+
                 // ----------------------------
                 // 2. READABLE: read and stage response when ready
                 // ----------------------------
                 if (mask & core::kEventReadable) {
-                    core::ConnectionResult read_result = OnClientRead(fd, connections_);
-                    if (read_result != core::ConnectionResult::OK) {
-                        // OnClientRead handles socket close
-                        continue; 
+                    if (connection.Read() != core::ConnectionResult::OK) {
+                        // The read failed
+                        if (connection.closed_) {
+                            connections_.erase(it);
+                        }
+                        continue;
                     }
-
-                    auto it = connections_.find(fd);
-                    if (it == connections_.end()) {
-                        // Connection may have been closed or removed
-                        continue; 
-                    }
-
-                    core::Connection& connection = it->second;
 
                     // Uncomment below to see user requests outputed to the console
                     std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
 
                     if (connection.role_ == core::ConnectionRole::Client) {
 
-                        if (connection.protocol_ == nullptr) {
-                            // Set the protocol for this connection
-                            core::protocol::ProtocolType protocol;
-                            if(core::protocol::ProbeProtocol(connection.receive_buffer_, protocol)) {
-                                switch(protocol) {
-                                    case core::protocol::ProtocolType::Socks4:
-                                        std::cout << "Socks4" << std::endl; // Not supported yet
-                                        CloseAndRemove(fd, connections_); 
-                                        break;
-                                    case core::protocol::ProtocolType::Socks4a:
-                                        std::cout << "Socks4a" << std::endl; // Not supported yet
-                                        CloseAndRemove(fd, connections_);
-                                        break;
-                                    case core::protocol::ProtocolType::Socks5:
-                                        std::cout << "Socks5" << std::endl;
-                                        connection.protocol_ = std::make_unique<core::protocol::Socks5>();
-                                        break;
-                                    case core::protocol::ProtocolType::Http:
-                                        std::cout << "Http" << std::endl; // Not supported yet
-                                        CloseAndRemove(fd, connections_);
-                                        break;
-                                    case core::protocol::ProtocolType::Unsupported:
-                                        [[fallthrough]];
-                                    case core::protocol::ProtocolType::Unknown:
-                                        [[fallthrough]];
-                                    default:
-                                        std::cout << "Unknown Protocol Type" << std::endl; // Not supported at all
-                                        HealthResponse(connection);
-                                        //CloseAndRemove(fd, connections_);
-                                        
-                                        break;
-                                }
-                            } else {
-                                // Not enough bytes
-                                // TODO: Decide if we want to log something here
-                            }
+                        if (!connection.protocol_) {
+                            (void)connection.SetProtocol();
                         }
 
                         // If the connection has a protocol set, we can do work with it
-                            if (connection.protocol_ != nullptr) {
-                                connection.protocol_->OnReadable(connection, connections_, poller_);
+                            if (connection.protocol_) {
+                                connection.OnReadable(poller_);
                             }
                     }
 
@@ -191,27 +146,14 @@ namespace server {
                 // 3. WRITABLE: drain send_buffer
                 // ----------------------------
                 if (mask & core::kEventWritable) {
-                    auto it = connections_.find(fd);
-                    if (it == connections_.end()) {
-                        // Socket could have been closed / erased elsewhere
-                        continue;
-                    }
-                    core::Connection& connection = it->second;
+
       
-                    if (connection.protocol_ != nullptr) {
-                        connection.protocol_->OnWritable(connection, connections_, poller_);
+                    if (connection.protocol_) {
+                        connection.OnWritable(poller_);
                     }
 
                     // Attempt to drain as much as possible durring this event from the send_buffer
-                    (void)OnClientWrite(fd, connections_);
-
-                    if (!connection.send_buffer_.empty()) {
-                        // We still have pending data to send so keep this socket WRITABLE
-                        connection.want_write_ = true;
-                    } else {
-                        // All data is sent
-                        connection.want_write_ = false;
-                    }
+                    (void)connection.Write();
 
                     (void)core::UpdateEventInterest(
                         poller_,
@@ -230,10 +172,8 @@ namespace server {
 
     void ProxyServer::CleanUpResources() {
 
-        // Close all client sockets
+        // Close all connections
         for (auto it = connections_.begin(); it != connections_.end(); ) {
-            const core::SocketIdentifier socket = it->first;
-            core::CloseSocket(socket);
             it = connections_.erase(it); //Returns the next it
         }
 

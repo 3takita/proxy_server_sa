@@ -20,11 +20,9 @@
             const char* Name() const override {return "SOCKS5"; }
 
             void OnReadable(Connection& connection,
-                            ConnectionMap& all,
                             EventPollerIdentifier poller) override;
 
             void OnWritable(Connection& connection,
-                            ConnectionMap& all,
                             EventPollerIdentifier poller) override;
         
         private:
