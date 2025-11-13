@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <iostream> // Remove after Logger exists
+#include <vector>
 
 namespace server {
 
@@ -35,11 +36,11 @@ namespace server {
             return;
         }
 
-        core::PollEvent events[static_cast<std::size_t>(max_events_)];
+        std::vector<core::PollEvent> events(static_cast<std::size_t>(max_events_));
 
         bool running = true;
         while (running) {
-            int n = core::WaitForEvents(poller_, events, max_events_, -1); 
+            int n = core::WaitForEvents(poller_, events.data(), max_events_, -1);
             if (n < 0) {
                 // TODO: Log epoll_wait error
                 // This is super rare but if it happens we may want to re-create epoll
