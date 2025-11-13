@@ -3,6 +3,7 @@
 #include "protocol/detector.h"
 #include "protocol/protocol.h"
 #include "protocol/socks5.h"
+#include "protocol/socks4.h"
 
 #include <cerrno>
 #include <cstring>
@@ -161,6 +162,7 @@ namespace core {
                 protocol_ = std::make_unique<core::protocol::Socks5>();
                 return true; 
             case core::protocol::ProtocolType::Socks4:
+                protocol_ = std::make_unique<core::protocol::Socks4>();
             case core::protocol::ProtocolType::Socks4a:
             case core::protocol::ProtocolType::Unsupported:
             case core::protocol::ProtocolType::Unknown:
@@ -182,7 +184,7 @@ namespace core {
     }
 
     ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
-                                               std::unordered_map<core::SocketIdentifier, Connection>& connections,
+                                               ConnectionMap& connections,
                                                std::vector<core::SocketIdentifier>* accepted_out) {
         
         while (true) {
@@ -216,6 +218,51 @@ namespace core {
 
             // TODO: Log that the client is accepted and registered with epoll
         }
+    }
+
+    ConnectionResult CreateUpstreamTCPConnection(core::EventPollerIdentifier poller,
+                                                    ConnectionMap& connections,
+                                                    Connection& client,
+                                                    const std::byte dest_ip[4],
+                                                    uint16_t dest_port) {
+        if (client.peer_socket_id_ != -1) {
+            return ConnectionResult::OK; // Already paired
+        }
+        
+        uint32_t ip =
+            (static_cast<uint32_t>(std::to_integer<uint8_t>(dest_ip[0])) << 24) |
+            (static_cast<uint32_t>(std::to_integer<uint8_t>(dest_ip[1])) << 16) |
+            (static_cast<uint32_t>(std::to_integer<uint8_t>(dest_ip[2])) << 8)  |
+             static_cast<uint32_t>(std::to_integer<uint8_t>(dest_ip[3]));
+
+        core::SocketIdentifier upstream_socket = core::ConnectTCPIPv4(ip, dest_port);
+
+        if (upstream_socket < 0) {
+            return ConnectionResult::UnknownError;
+        }
+
+        if (!core::SetSocketNonBlocking(upstream_socket)) {
+            core::CloseSocket(upstream_socket);
+            return ConnectionResult::UnknownError;
+        }
+
+        if (!core::RegisterReadEvent(poller, upstream_socket)) {
+            core::CloseSocket(upstream_socket);
+            return ConnectionResult::EpollRegisterFailed;
+        }
+
+        Connection upstream;
+        upstream.id_ = upstream_socket;
+        upstream.role_ = ConnectionRole::Upstream;
+        upstream.peer_socket_id_ = client.id_;
+        upstream.receive_buffer_.reserve(core::k_8KB);
+
+        connections.emplace(upstream_socket, std::move(upstream));
+
+        // Link client to its upstream socket
+        client.peer_socket_id_ = upstream_socket;
+
+        return ConnectionResult::OK;
     }
 
 } // namespace core

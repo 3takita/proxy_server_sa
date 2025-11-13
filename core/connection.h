@@ -76,12 +76,23 @@ namespace core {
         std::unique_ptr<core::protocol::Protocol> protocol_;
     };
 
+    using ConnectionMap = std::unordered_map<core::SocketIdentifier, Connection> ;
+
     // Accept as many queued connections as possible
     // Set them to non-blocking
     // Register for read events, and add them to a map of connections
     ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
-                                               std::unordered_map<core::SocketIdentifier, Connection>& connections, 
+                                               ConnectionMap& connections, 
                                                std::vector<core::SocketIdentifier>* accepted_out);
+
+    // Creates an upstream (server --> internet) connection for a client.
+    // dest_ip is 4 bytes of IPv4 address in network byte order,
+    // dest_port is the port in network byte order
+    ConnectionResult CreateUpstreamTCPConnection(core::EventPollerIdentifier poller,
+                                                    ConnectionMap& connections,
+                                                    Connection& client,
+                                                    const std::byte dest_ip[4],
+                                                    uint16_t dest_port);
     
 
 } // namespace core

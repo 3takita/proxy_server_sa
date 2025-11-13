@@ -83,6 +83,11 @@ namespace core {
     // <=0 : error or would-block on non-blocking socket
     std::ptrdiff_t Send(SocketIdentifier socket, const void* buffer, std::size_t length);
 
+    // Creates a TCP socket and connects to an IPv4 address.
+    // dst_ipv4 and dst_port are in network byte order
+    // Returns a socket identifier on success or -1 on failure
+    SocketIdentifier ConnectTCPIPv4(uint32_t dst_ipv4, uint16_t dst_port);
+
     // Closes a socket safely
     void CloseSocket(SocketIdentifier socket);
 
