@@ -77,5 +77,24 @@ help:
 	@echo "  clean       Remove obj/ and bin/"
 	@echo "  help        Show this help"
 
+# ----- DNS Test Target -----
+.PHONY: dns-test
+
+dns-test: $(BINDIR)/$(TARGET)
+	@echo "[dns] Starting proxy server in background..."
+	@$(BINDIR)/$(TARGET) & \
+		SERVER_PID=$$!; \
+		sleep 1; \
+		echo "[dns] Testing DNS forwarding on port 5353..."; \
+		echo; \
+		dig @127.0.0.1 -p 5353 google.com | grep -E "ANSWER|status"; \
+		echo; \
+		echo "[dns] Testing a second query (cached)"; \
+		dig @127.0.0.1 -p 5353 google.com | grep -E "ANSWER|status"; \
+		echo; \
+		echo "[dns] Stopping server..."; \
+		kill $$SERVER_PID >/dev/null 2>&1 || true; \
+		echo "[dns] DNS test complete."
+
 # ----- Include dependencies if present -----
 -include $(DEPS)
