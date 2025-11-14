@@ -1,5 +1,6 @@
 #include "connection.h"
 #include "network_constants.h"
+
 #include "protocol/detector.h"
 #include "protocol/protocol.h"
 #include "protocol/socks5.h"
@@ -155,31 +156,20 @@ namespace core {
         }
 
         switch (type) {
-            case core::protocol::ProtocolType::Http:
+            case core::protocol::ProtocolType::kHttp:
                 // TODO: protocol_ = std::make_unique<Http>();
                 return false; // not implemented yet
-            case core::protocol::ProtocolType::Socks5:
-                protocol_ = std::make_unique<core::protocol::Socks5>();
-                return true; 
-            case core::protocol::ProtocolType::Socks4:
+            case core::protocol::ProtocolType::kSocks5:
+                // protocol_ = std::make_unique<core::protocol::Socks5>();
+                return false; 
+            case core::protocol::ProtocolType::kSocks4:
                 protocol_ = std::make_unique<core::protocol::Socks4>();
-            case core::protocol::ProtocolType::Socks4a:
-            case core::protocol::ProtocolType::Unsupported:
-            case core::protocol::ProtocolType::Unknown:
+                return true;
+            case core::protocol::ProtocolType::kSocks4a:
+            case core::protocol::ProtocolType::kUnsupported:
+            case core::protocol::ProtocolType::kUnknown:
             default:
                 return false;
-        }
-    }
-
-    void Connection::OnReadable(EventPollerIdentifier poller) {
-        if (protocol_) {
-            protocol_->OnReadable(*this, poller);
-        }
-    }
-
-    void Connection::OnWritable(EventPollerIdentifier poller) {
-        if (protocol_) {
-            protocol_->OnWritable(*this, poller);
         }
     }
 
@@ -247,6 +237,15 @@ namespace core {
         }
 
         if (!core::RegisterReadEvent(poller, upstream_socket)) {
+            core::CloseSocket(upstream_socket);
+            return ConnectionResult::EpollRegisterFailed;
+        }
+
+        if (!core::UpdateEventInterest(
+                poller,
+                upstream_socket,
+                /*readable=*/true,
+                /*writable=*/true)) {
             core::CloseSocket(upstream_socket);
             return ConnectionResult::EpollRegisterFailed;
         }

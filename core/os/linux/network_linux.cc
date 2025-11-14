@@ -205,6 +205,43 @@ namespace core {
         return static_cast<std::ptrdiff_t>(n);
     }
 
+    SocketIdentifier ConnectTCPIPv4(uint32_t dst_ipv4, uint16_t dst_port) {
+        // Create an IPv4 TCP socket
+        SocketIdentifier sock = ::socket(AF_INET, SOCK_STREAM, 0);
+        if (sock < 0) {
+            // TODO: Log socket() creation failure
+            return -1;
+        }
+
+        // Set the socket non-blocking
+        if (!SetSocketNonBlocking(sock)) {
+            // TODO: Log socket non-blocked failure
+            CloseSocket(sock);
+            return -1;
+        }
+
+        sockaddr_in addr{};
+        addr.sin_family = AF_INET;
+        addr.sin_addr.s_addr = htonl(dst_ipv4);
+        addr.sin_port = htons(dst_port);
+
+        int rc = ::connect(sock, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+
+        if (rc == 0) {
+            // Connected immediately (rare)
+            return sock;
+        } else if(rc < 0) {
+            if (errno == EINPROGRESS) {
+                // Connection started, will be detected by EPOLLOUT
+                return sock;
+            }
+
+            CloseSocket(sock);
+            return -1;
+        }
+        return sock;
+    }
+
     void CloseSocket(SocketIdentifier socket) {
         if (socket >= 0) {
             if (::close(socket) < 0) {

@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <string>
 
 namespace core::protocol {
 
@@ -23,12 +24,14 @@ namespace core::protocol {
             Failed
         };
 
-        const char* Name() const override {return "SOCKS4"; }
+        ProtocolType type() const noexcept override { return ProtocolType::kSocks4; }
 
-        void OnReadable(Connection& connection, EventPollerIdentifier poller) override;
-        void OnWritable(Connection& connection, EventPollerIdentifier poller) override;
+        void OnReadable(Connection* self, Connection* peer, EventPollerIdentifier poller) override;
+        void OnWritable(Connection* self, Connection* peer, EventPollerIdentifier poller) override;
 
-        bool IsEstablished() const;
+        State state() const noexcept { return state_; }
+        uint16_t destination_port() const noexcept { return destination_port_; }
+        const std::byte* destination_ip() const noexcept { return destination_ip_; }
 
     private:
         State state_{State::Init};

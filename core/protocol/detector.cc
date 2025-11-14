@@ -16,36 +16,36 @@ namespace core::protocol {
 
     bool Detector::ProbeProtocol(const std::vector<std::byte>& buf, ProtocolType* out_type) const {
         if (out_type == nullptr) return false; // We need a place to store the result
-        *out_type = ProtocolType::Unknown;
+        *out_type = ProtocolType::kUnknown;
         if (buf.empty()) return false; // Not enough data
 
 
         // SOCKS5: VER byte == 0x04
         if (IsSocks4(buf)) {
             if (IsSocks4a(buf)) {
-                *out_type = ProtocolType::Socks4a;
+                *out_type = ProtocolType::kSocks4a;
                 return true;
             } else {
-                *out_type = ProtocolType::Socks4;
+                *out_type = ProtocolType::kSocks4;
                 return true;
             }
         }
 
         // SOCKS5: VER byte == 0x05
         if (IsSocks5(buf)) {
-            *out_type = ProtocolType::Socks5;
+            *out_type = ProtocolType::kSocks5;
             return true; // Type found
         }
 
         // HTTP: ASCII request line
         if (IsHttp(buf)) {
-            *out_type = ProtocolType::Http;
+            *out_type = ProtocolType::kHttp;
             return true;
         }
 
         if (buf.size() < 8) return false; // Not enough data
 
-        *out_type = ProtocolType::Unsupported;
+        *out_type = ProtocolType::kUnsupported;
         return true; // Unknown type
     }
 

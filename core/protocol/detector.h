@@ -1,20 +1,13 @@
 #ifndef PROXY_SERVER_CORE_PROTOCOL_DETECTOR_H_
 #define PROXY_SERVER_CORE_PROTOCOL_DETECTOR_H_
 
+#include "protocol.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <vector>
 
 namespace core::protocol {
-
-    enum class ProtocolType : uint8_t {
-        Unknown = 0,
-        Socks4,
-        Socks4a,
-        Socks5,
-        Http,
-        Unsupported
-    };
 
     class Detector {
     public:

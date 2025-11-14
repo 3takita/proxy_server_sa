@@ -32,10 +32,10 @@ namespace core::protocol {
             // Everything else is unassigned or reserved
         };
 
-        const char* Name() const override {return "SOCKS5"; }
+        ProtocolType type() const noexcept override { return ProtocolType::kSocks5; }
 
-        void OnReadable(Connection& connection, EventPollerIdentifier poller) override;
-        void OnWritable(Connection& connection, EventPollerIdentifier poller) override;
+        void OnReadable(Connection* self, Connection* peer, EventPollerIdentifier poller) override;
+        void OnWritable(Connection* self, Connection* peer, EventPollerIdentifier poller) override;
     
     private:
         Phase phase_{Phase::Greeting};

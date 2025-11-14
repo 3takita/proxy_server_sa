@@ -1,7 +1,9 @@
 #include "proxy_server.h"
+
 #include "protocol/detector.h"
 #include "protocol/protocol.h"
 #include "protocol/socks5.h"
+#include "protocol/socks4.h"
 #include "utils/string_utils.h"
 
 #include <cstring>
@@ -23,7 +25,11 @@ namespace server {
             return; // We can't do anything without a listening socket
         }
 
-        (void)core::SetSocketNonBlocking(socket_); // This can fail but we will handle the logging and consequences later
+        if (!core::SetSocketNonBlocking(socket_)) {
+            // TODO: Log failed to set socket non-blocking
+            CleanUpResources();
+            return;
+        } 
 
         poller_ = core::CreateEventPoller();
         if (poller_ < 0) {
@@ -119,18 +125,32 @@ namespace server {
                     continue;
                 }
 
-                //Get the connection 
+                // Get the connection 
                 auto it = connections_.find(fd);
                 if (it == connections_.end()) continue;
-                core::Connection& connection = it->second;
+                core::Connection* connection = &it->second;
+
+                // Also find the peer if it exists
+                core::Connection* peer_connection = nullptr;
+                if (connection->peer_socket_id_ != -1) {
+                    // The peer should exist
+                    auto pit = connections_.find(connection->peer_socket_id_);
+                    if (pit != connections_.end()) {
+                        peer_connection = &pit->second;
+                    } else {
+                        // Peer no longer exists; clear the link
+                        connection->peer_socket_id_ = -1;
+                    }
+                }
+
 
                 // ----------------------------
                 // 2. READABLE: read and stage response when ready
                 // ----------------------------
                 if (mask & core::kEventReadable) {
-                    if (connection.Read() != core::ConnectionResult::OK) {
+                    if (connection->Read() != core::ConnectionResult::OK) {
                         // The read failed
-                        if (connection.closed_) {
+                        if (connection->closed_) {
                             connections_.erase(it);
                         }
                         continue;
@@ -138,26 +158,74 @@ namespace server {
 
                     // Uncomment below to see user requests outputed to the console
                     //std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
-                    std::cout << core::utils::bytesToHex(connection.receive_buffer_) << std::endl;
+                    //std::cout << core::utils::bytesToHex(connection->receive_buffer_) << std::endl;
 
-                    if (connection.role_ == core::ConnectionRole::Client) {
+                    if (connection->role_ == core::ConnectionRole::Client) {
 
-                        if (!connection.protocol_) {
-                            (void)connection.SetProtocol();
+                        if (!connection->protocol_) {
+                            (void)connection->SetProtocol();
                         }
 
                         // If the connection has a protocol set, we can do work with it
-                            if (connection.protocol_) {
-                                connection.OnReadable(poller_);
+                            if (connection->protocol_) {
+                                
+                                // Peer connection can be null if no upstream connection yet
+                                connection->protocol_->OnReadable(connection, peer_connection, poller_);
+
+                                // Figure out which protocol it is so we know what to do
+                                switch (connection->protocol_->type()) {
+                                    case core::protocol::ProtocolType::kSocks4: {
+                                        auto* socks4 = dynamic_cast<core::protocol::Socks4*>(connection->protocol_.get());
+                                        if (connection->peer_socket_id_ == -1 && 
+                                            socks4->state() == core::protocol::Socks4::State::Established) {
+                                            core::CreateUpstreamTCPConnection (
+                                                poller_,
+                                                connections_,
+                                                *connection,
+                                                socks4->destination_ip(),
+                                                socks4->destination_port()
+                                            );
+                                        }
+                                        break;
+                                    } 
+                                    case core::protocol::ProtocolType::kSocks4a: {
+                                        break;
+                                    }
+                                    case core::protocol::ProtocolType::kSocks5: {
+                                        break;
+                                    }
+                                    case core::protocol::ProtocolType::kHttp: {
+                                        break;
+                                    }
+                                    default: {
+                                        break;
+                                    }
+                                }             
                             }
+                    } else if (connection->role_ == core::ConnectionRole::Upstream) {
+                        // The client's connection protocol can handle forwarding upstream
+                        if (peer_connection && peer_connection->protocol_) {
+                            peer_connection->protocol_->OnReadable(connection, peer_connection, poller_);
+                        }
                     }
 
+                    // Update this connection's event interests
                     (void)core::UpdateEventInterest(
                         poller_,
                         fd,
                         /*readable=*/true, // Replace with some rate limiting check
-                        /*writable=*/connection.want_write_
+                        /*writable=*/connection->want_write_
                     );
+
+                    // Update the peer's event interests, if we just changed them
+                    if (peer_connection) {
+                        (void)core::UpdateEventInterest(
+                            poller_,
+                            peer_connection->id_,
+                            /*readable=*/true, // Replace with some rate limiting check
+                            /*writable=*/peer_connection->want_write_
+                        );
+                    }
                 }
 
                 // ----------------------------
@@ -166,18 +234,18 @@ namespace server {
                 if (mask & core::kEventWritable) {
 
       
-                    if (connection.protocol_) {
-                        connection.OnWritable(poller_);
+                    if (connection->protocol_) {
+                         connection->protocol_->OnWritable(connection, peer_connection, poller_);
                     }
 
                     // Attempt to drain as much as possible durring this event from the send_buffer
-                    (void)connection.Write();
+                    (void)connection->Write();
 
                     (void)core::UpdateEventInterest(
                         poller_,
                         fd,
                         /*readable=*/true, // Add some sort of rate limiting later
-                        /*writable=*/connection.want_write_
+                        /*writable=*/connection->want_write_
                     );
                  
                 }

@@ -60,8 +60,6 @@ namespace core {
         // Determines the protocol and sets it if not already set
         // Returns true if we know what the protocol is, false otherwise
         bool SetProtocol();
-        void OnReadable(EventPollerIdentifier poller);
-        void OnWritable(EventPollerIdentifier poller);
 
         core::SocketIdentifier id_;
 
