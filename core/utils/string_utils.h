@@ -8,6 +8,7 @@
 namespace core::utils {
 
     std::string bytesToReadableString(const std::vector<std::byte>& bytes);
+    std::string bytesToHex(const std::vector<std::byte>& bytes);
 
 } // namespace core::utils
 
