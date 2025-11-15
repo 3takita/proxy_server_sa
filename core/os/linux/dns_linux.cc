@@ -8,6 +8,9 @@
 #include <iostream>
 #include <chrono>
 #include <algorithm>
+#include <netdb.h>
+#include <netdb.h>
+
 
 DNSForwarder::DNSForwarder(uint16_t listen_port, std::string upstream, uint16_t upstream_port, uint32_t cache_ttl_seconds) {
     listen_port_ = listen_port;
@@ -128,47 +131,46 @@ void DNSForwarder::listenerLoop() {
 
 bool DNSForwarder::forwardToUpstream(const std::vector<uint8_t>& query, std::vector<uint8_t>& response, int timeout_ms) {
     int s = socket(AF_INET, SOCK_DGRAM, 0);
-    if (s < 0) {
-        perror("socket(upstream)");
-        return false;
-    }
+    if (s < 0) { perror("socket(upstream)"); return false; }
 
     sockaddr_in upstream_addr{};
     upstream_addr.sin_family = AF_INET;
     upstream_addr.sin_port = htons(upstream_port_);
-    if (inet_pton(AF_INET, upstream_.c_str(), &upstream_addr.sin_addr) <= 0) {
-        // dns name for upstream not supported here (only IP). You can extend to getaddrinfo().
-        close(s);
-        return false;
+
+    // Resolve hostname if needed
+    struct in_addr addr;
+    if (inet_pton(AF_INET, upstream_.c_str(), &addr) <= 0) {
+        // try getaddrinfo
+        struct addrinfo hints{}, *res = nullptr;
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_DGRAM;
+        if (getaddrinfo(upstream_.c_str(), nullptr, &hints, &res) != 0 || !res) {
+            close(s);
+            return false;
+        }
+        upstream_addr.sin_addr = ((struct sockaddr_in*)res->ai_addr)->sin_addr;
+        freeaddrinfo(res);
+    } else {
+        upstream_addr.sin_addr = addr;
     }
 
     // send query
-    ssize_t sent = sendto(s, query.data(), (int)query.size(), 0,
+    ssize_t sent = sendto(s, query.data(), query.size(), 0,
                           reinterpret_cast<sockaddr*>(&upstream_addr), sizeof(upstream_addr));
-    if (sent < 0) {
-        perror("sendto(upstream)");
-        close(s);
-        return false;
-    }
+    if (sent < 0) { perror("sendto(upstream)"); close(s); return false; }
 
-    // set recv timeout
     timeval tv{};
     tv.tv_sec = timeout_ms / 1000;
     tv.tv_usec = (timeout_ms % 1000) * 1000;
-    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof(tv));
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
     uint8_t buf[4096];
     sockaddr_in from{};
     socklen_t fromlen = sizeof(from);
     ssize_t n = recvfrom(s, buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromlen);
-    if (n <= 0) {
-        // timeout or error
-        close(s);
-        return false;
-    }
+    if (n <= 0) { close(s); return false; }
 
     response.assign(buf, buf + n);
-
     close(s);
     return true;
 }
