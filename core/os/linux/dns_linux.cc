@@ -264,21 +264,3 @@ void DNSForwarder::cleanupExpired() {
         else ++it;
     }
 }
-
-// Example main for a standalone utility (optional)
-/*
-int main(int argc, char** argv) {
-    DNSForwarder forwarder(5353, "8.8.8.8", 53, 300);
-    if (!forwarder.start()) {
-        std::cerr << "Failed to start DNS forwarder\n";
-        return 1;
-    }
-    std::cout << "DNS forwarder started on UDP port 5353 (forwarding to 8.8.8.8)\n";
-    std::cout << "Press ENTER to stop...\n";
-    std::string dummy;
-    std::getline(std::cin, dummy);
-    forwarder.stop();
-    return 0;
-}
-*/
-
