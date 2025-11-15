@@ -23,7 +23,7 @@ public:
 
     ~DNSForwarder();
 
-    // start listening and forwarding (spawns a thread)
+    // start listening and forwarding
     bool start();
 
     // stop the background listener and join thread

@@ -9,16 +9,14 @@
 #include <chrono>
 #include <algorithm>
 
-DNSForwarder::DNSForwarder(uint16_t listen_port,
-                           std::string upstream,
-                           uint16_t upstream_port,
-                           uint32_t cache_ttl_seconds)
-    : listen_port_(listen_port),
-      upstream_(std::move(upstream)),
-      upstream_port_(upstream_port),
-      cache_ttl_seconds_(cache_ttl_seconds),
-      sockfd_(-1),
-      running_(false) {}
+DNSForwarder::DNSForwarder(uint16_t listen_port, std::string upstream, uint16_t upstream_port, uint32_t cache_ttl_seconds) {
+    listen_port_ = listen_port;
+    upstream_ = std::move(upstream);
+    upstream_port_ = upstream_port;
+    cache_ttl_seconds_ = cache_ttl_seconds;
+    sockfd_ = -1;
+    running_ = false; 
+}
 
 DNSForwarder::~DNSForwarder() {
     stop();
