@@ -4,6 +4,11 @@
 #include "network.h"
 #include "connection.h"
 
+// Include DNS header
+#include "dns.h"
+#include <memory>
+#include <thread>
+
 
 // I know the header define looks long and weird
 // but it follows the format
@@ -24,6 +29,10 @@ namespace server {
         core::SocketIdentifier socket_{};
         core::EventPollerIdentifier poller_{};
         core::ConnectionMap connections_;
+
+        //DNS stuff
+        std::unique_ptr<DNSForwarder> dns_forwarder_;
+        std::thread dns_thread_;
 
         void CleanUpResources();
         void HealthResponse(core::Connection& connection);

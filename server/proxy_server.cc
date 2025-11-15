@@ -5,6 +5,7 @@
 #include "protocol/socks5.h"
 #include "protocol/socks4.h"
 #include "utils/string_utils.h"
+#include "dns.h"
 
 #include <cstring>
 #include <iostream> // Remove after Logger exists
