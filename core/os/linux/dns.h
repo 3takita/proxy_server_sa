@@ -9,6 +9,8 @@
 #include <atomic>
 #include <thread>
 #include <mutex>
+#include <optional>
+#include <array>
 
 class DNSForwarder {
 public:
@@ -29,9 +31,17 @@ public:
     // stop the background listener and join thread
     void stop();
 
-    // synchronous resolve helper (tries cache then upstream) returns true if got a response
+    // synchronous resolve helper (tries cache then upstream)
     bool resolveQueryUDP(const std::vector<uint8_t>& query,
                          std::vector<uint8_t>& response);
+
+    // Linux-native hostname resolver using getaddrinfo
+    struct IPAddress {
+        std::string str;
+        int family;                     // AF_INET or AF_INET6
+        std::vector<std::byte> bytes;   // raw address bytes
+    };
+    static std::vector<IPAddress> resolveHostname(const std::string& hostname);
 
 private:
     struct CacheEntry {
