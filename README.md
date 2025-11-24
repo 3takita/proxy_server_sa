@@ -14,12 +14,7 @@ This server demonstrates non-blocking network I/O using `epoll` and supports con
   - Maximum events per `epoll_wait` (`--max-events`)
   - Bind host (`--bind-host`)
   - Verbose logging (`--verbose`)
-- Graceful client connection handling.
-- Simple modular structure:
-  - `core/` - Networking and configuration utilities.
-  - `server/` - Proxy server implementation.
-  - `app/` - Entry point (`main.cc`).
-
+  - Graceful client connection handling.
 ---
 
 ## Requirements
@@ -77,25 +72,5 @@ Verify the listening port with:
 
 ss -tuln | grep 9090
 
-Project Structure
-proxy_server/
-├─ app/
-│  └─ main.cc           # Entry point
-├─ core/
-│  ├─ config.h          # Config struct & parsing
-│  ├─ config.cc         # Config implementation
-│  ├─ network.h         # Network interface
-│  └─ network_linux.cc  # Linux network implementation
-├─ server/
-│  ├─ proxy_server.h    # ProxyServer class
-│  └─ proxy_server.cc   # ProxyServer implementation
-├─ bins/                # Compiled binaries (output by make)
-└─ Makefile             # Build instructions
-
-Notes
-
-Non-blocking sockets prevent the server from hanging on slow or inactive clients.
-
-Currently, this proxy server accepts connections but does not forward traffic. This can be extended for full proxy functionality.
-
+Note
 Licensed under the MIT License. See LICENSE file for details.
