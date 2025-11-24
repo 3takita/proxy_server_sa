@@ -15,6 +15,7 @@ private:
     core::SocketIdentifier socket_{};
     core::EventPollerIdentifier poller_{};
     core::ConnectionMap connections_;
+    core::Config config_{};
 
     void CleanUpResources();
     void HealthResponse(core::Connection& connection);

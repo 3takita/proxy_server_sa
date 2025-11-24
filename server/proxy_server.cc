@@ -151,22 +151,16 @@ void ProxyServer::Run()
                     continue;
                 }
 
-                if (connection->role_ == core::ConnectionRole::Client) {
-
-                    // Detect protocol if not set
-                    if (!connection->protocol_) {
-                        (void)connection->SetProtocol();
-                    }
-
+                if (connection->role_ == core::ConnectionRole::Client) {   
                     if (connection->protocol_) {
                         connection->protocol_->OnReadable(
                             connection, 
                             peer_connection, 
                             poller_
-                        );
+                    );
 
-                        // If SOCKS4 established, create upstream connection
-                        if (connection->protocol_->type() 
+                    // If SOCKS4 established, create upstream connection
+                    if (connection->protocol_->type() 
                                 == core::protocol::ProtocolType::kSocks4) {
                             
                             auto* socks4 = dynamic_cast<core::protocol::Socks4*>(
