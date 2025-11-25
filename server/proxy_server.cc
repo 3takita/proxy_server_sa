@@ -25,7 +25,7 @@ namespace server {
 
         if (socket_ < 0) {
             // TODO: Log failed to create a listening socket on port_
-            return;
+            return; // We can't do anything without a listening socket
         }
 
         if (!core::SetSocketNonBlocking(socket_)) {
@@ -51,15 +51,8 @@ namespace server {
         bool running = true;
 
         while (running) {
-
             const int TIMEOUT = -1; // Never timeout
-
-            int n = core::WaitForEvents(
-                poller_,
-                events,
-                config_.max_events,
-                TIMEOUT
-            );
+            int n = core::WaitForEvents(poller_, events, config_.max_events, TIMEOUT);
 
             if (n < 0) {
                 // TODO: Log epoll_wait error
@@ -78,11 +71,12 @@ namespace server {
                 const auto fd = events[i].fd;
                 const auto mask = events[i].mask;
 
-                // ----------------------------------
-                // Error or hangup event
-                // ----------------------------------
+                // ----------------------------
+                // Event Error Handling
+                // ----------------------------
                 if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
                     if (fd == socket_) {
+                        // TODO: Log fatal listening socket error/hangup
                         running = false;
                         break;
                     }
@@ -96,9 +90,9 @@ namespace server {
                     continue;
                 }
 
-                // ----------------------------------
+                // ----------------------------
                 // 1. Handle New Connections
-                // ----------------------------------
+                // ----------------------------
                 if (fd == socket_) {
                     std::vector<core::SocketIdentifier> accepted;
                     (void)AcceptNewClientConnection(socket_, poller_, connections_, &accepted);
@@ -117,11 +111,11 @@ namespace server {
                         auto now = std::chrono::system_clock::now();
                         std::time_t now_c = std::chrono::system_clock::to_time_t(now);
                         std::tm tm_buf{};
-                        #ifdef _WIN32
-                            localtime_s(&tm_buf, &now_c);
-                        #else
-                            localtime_r(&now_c, &tm_buf);
-                        #endif
+                    #ifdef _WIN32
+                        localtime_s(&tm_buf, &now_c);
+                    #else
+                        localtime_r(&now_c, &tm_buf);
+                    #endif
 
                         std::ostringstream timestamp;
                         timestamp << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
@@ -132,15 +126,12 @@ namespace server {
                         } else {
                             std::cout << "[" << timestamp.str() << "] [+] New connection " << a
                                     << " (address unavailable)" << std::endl;
-                        }
-                        
-                        continue;
+                        }           
                     }
+                    continue;
                 }
 
-                // -----------------------------
-                // Retrieve connection
-                // -----------------------------
+                // Get the connection
                 auto it = connections_.find(fd);
                 if (it == connections_.end()) continue;
 
@@ -149,11 +140,12 @@ namespace server {
                 // Also find the peer if it exists
                 core::Connection* peer_connection = nullptr;
                 if (connection->peer_socket_id_ != -1) {
+                    // The peer should exist
                     auto pit = connections_.find(connection->peer_socket_id_);
                     if (pit != connections_.end()) {
                         peer_connection = &pit->second;
                     } else {
-                        // Peer no longer exists --> clear the link
+                        // Peer no longer exists; clear the link
                         connection->peer_socket_id_ = -1;
                     }
                 }
@@ -163,6 +155,7 @@ namespace server {
                 // ----------------------------------
                 if (mask & core::kEventReadable) {
                     if (connection->Read() != core::ConnectionResult::OK) {
+                        // The read failed
                         if (connection->closed_) {
                             connections_.erase(it);
                         }
@@ -170,10 +163,8 @@ namespace server {
                     }
                 }
 
-
-
                 // Uncomment below to see user requests outputed to the console
-                //std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
+                //std::cout << core::utils::bytesToReadableString(connection->receive_buffer_) << std::endl;
                 //std::cout << core::utils::bytesToHex(connection->receive_buffer_) << std::endl;
 
                 if (connection->role_ == core::ConnectionRole::Client) {
@@ -183,6 +174,7 @@ namespace server {
 
                     // If the connection has a protocol set, we can do work with it
                     if (connection->protocol_) {
+
                         // Peer connection can be null if no upstream connection yet
                         connection->protocol_->OnReadable(connection, peer_connection, poller_);
 
@@ -203,6 +195,12 @@ namespace server {
                                 break;
                             }
                             case core::protocol::ProtocolType::kSocks4a: {
+                                break;
+                            }
+                            case core::protocol::ProtocolType::kSocks5: {
+                                break;
+                            }
+                            case core::protocol::ProtocolType::kHttp: {
                                 break;
                             }
                             default: {
@@ -265,11 +263,13 @@ namespace server {
             it = connections_.erase(it);
         }
 
+        // Close poller
         if (poller_ > 0) {
             core::CloseSocket(poller_);
             poller_ = 0;
         }
 
+        // Close listening socket
         if (socket_ > 0) {
             core::CloseSocket(socket_);
             socket_ = 0;
