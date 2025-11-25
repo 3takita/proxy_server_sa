@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <cstddef>
 
 struct IPAddress {
     std::string str;              // String representation

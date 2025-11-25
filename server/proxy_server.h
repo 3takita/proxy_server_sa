@@ -3,9 +3,9 @@
 
 #include "network.h"
 #include "connection.h"
-
-// Include DNS header
 #include "dns.h"
+#include "config.h"
+
 #include <memory>
 #include <thread>
 
@@ -19,18 +19,18 @@ class ProxyServer final {
 public:
 
     void SetConfig(Config& cfg);
-
     void Run();
 
-    private:
+private:
     // TODO: Let the user specify these later
     // with command line arguments
-        int port_{ 8080 };
-        int backlog_{ 128 };
-        int max_events_{ 16 };
-        core::SocketIdentifier socket_{};
-        core::EventPollerIdentifier poller_{};
-        core::ConnectionMap connections_;
+    int port_{ 8080 };
+    int backlog_{ 128 };
+    int max_events_{ 16 };
+    core::SocketIdentifier socket_{};
+    core::EventPollerIdentifier poller_{};
+    core::ConnectionMap connections_{};
+    server::Config config_{};
 
     //DNS stuff
     std::unique_ptr<DNSForwarder> dns_forwarder_;
