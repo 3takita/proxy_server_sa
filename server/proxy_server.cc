@@ -15,11 +15,14 @@
 
 namespace server {
 
+    void ProxyServer::SetConfig(Config& cfg) {
+        config_ = cfg;
+    }
+
     void ProxyServer::Run() {
-        
         (void)core::InitializeNetwork();
 
-        socket_ = core::CreateListeningSocket("", port_, backlog_);
+        socket_ = core::CreateListeningSocket(config_.bind_host, config_.port, config_.backlog);
 
         if (socket_ < 0) {
             // TODO: Log failed to create a listening socket on port_
@@ -30,7 +33,7 @@ namespace server {
             // TODO: Log failed to set socket non-blocking
             CleanUpResources();
             return;
-        } 
+        }
 
         poller_ = core::CreateEventPoller();
         if (poller_ < 0) {
@@ -45,11 +48,13 @@ namespace server {
             return;
         }
 
-        core::PollEvent events[static_cast<std::size_t>(max_events_)];
-
+        core::PollEvent events[static_cast<std::size_t>(config_.max_events)];
         bool running = true;
+
         while (running) {
-            int n = core::WaitForEvents(poller_, events, max_events_, -1); 
+            const int TIMEOUT = -1; // Never timeout
+            int n = core::WaitForEvents(poller_, events, config_.max_events, TIMEOUT);
+
             if (n < 0) {
                 // TODO: Log epoll_wait error
                 // This is super rare but if it happens we may want to re-create epoll
@@ -58,10 +63,12 @@ namespace server {
                 break;
             } else if (n == 0) {
                 // Not expected with timeout = -1
+                // But we should log it if it does happen
                 continue;
             }
 
             for (int i = 0; i < n; i++) {
+
                 const auto fd = events[i].fd;
                 const auto mask = events[i].mask;
 
@@ -74,7 +81,7 @@ namespace server {
                         running = false;
                         break;
                     }
-                    
+
                     auto it = connections_.find(fd);
                     if (it != connections_.end()) {
                         connections_.erase(it);
@@ -120,15 +127,15 @@ namespace server {
                         } else {
                             std::cout << "[" << timestamp.str() << "] [+] New connection " << a
                                     << " (address unavailable)" << std::endl;
-                        }
+                        }           
                     }
-
                     continue;
                 }
 
-                // Get the connection 
+                // Get the connection
                 auto it = connections_.find(fd);
                 if (it == connections_.end()) continue;
+
                 core::Connection* connection = &it->second;
 
                 // Also find the peer if it exists
@@ -144,10 +151,9 @@ namespace server {
                     }
                 }
 
-
-                // ----------------------------
+                // ----------------------------------
                 // 2. READABLE: read and stage response when ready
-                // ----------------------------
+                // ----------------------------------
                 if (mask & core::kEventReadable) {
                     if (connection->Read() != core::ConnectionResult::OK) {
                         // The read failed
@@ -156,90 +162,87 @@ namespace server {
                         }
                         continue;
                     }
+                }
 
-                    // Uncomment below to see user requests outputed to the console
-                    //std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
-                    //std::cout << core::utils::bytesToHex(connection->receive_buffer_) << std::endl;
+                // Uncomment below to see user requests outputed to the console
+                //std::cout << core::utils::bytesToReadableString(connection->receive_buffer_) << std::endl;
+                //std::cout << core::utils::bytesToHex(connection->receive_buffer_) << std::endl;
 
-                    if (connection->role_ == core::ConnectionRole::Client) {
-
-                        if (!connection->protocol_) {
-                            (void)connection->SetProtocol();
-                        }
-
-                        // If the connection has a protocol set, we can do work with it
-                            if (connection->protocol_) {
-                                
-                                // Peer connection can be null if no upstream connection yet
-                                connection->protocol_->OnReadable(connection, peer_connection, poller_);
-
-                                // Figure out which protocol it is so we know what to do
-                                switch (connection->protocol_->type()) {
-                                    case core::protocol::ProtocolType::kSocks4: {
-                                        auto* socks4 = dynamic_cast<core::protocol::Socks4*>(connection->protocol_.get());
-                                        if (connection->peer_socket_id_ == -1 && 
-                                            socks4->state() == core::protocol::Socks4::State::Established) {
-                                            core::CreateUpstreamTCPConnection (
-                                                poller_,
-                                                connections_,
-                                                *connection,
-                                                socks4->destination_ip(),
-                                                socks4->destination_port()
-                                            );
-                                        }
-                                        break;
-                                    } 
-                                    case core::protocol::ProtocolType::kSocks4a: {
-                                        break;
-                                    }
-                                    case core::protocol::ProtocolType::kSocks5: {
-                                        break;
-                                    }
-                                    case core::protocol::ProtocolType::kHttp: {
-                                        break;
-                                    }
-                                    default: {
-                                        break;
-                                    }
-                                }             
-                            }
-                    } else if (connection->role_ == core::ConnectionRole::Upstream) {
-                        // The client's connection protocol can handle forwarding upstream
-                        if (peer_connection && peer_connection->protocol_) {
-                            peer_connection->protocol_->OnReadable(connection, peer_connection, poller_);
-                        }
+                if (connection->role_ == core::ConnectionRole::Client) {
+                    if (!connection->protocol_) {
+                        (void)connection->SetProtocol();
                     }
 
-                    // Update this connection's event interests
-                    (void)core::UpdateEventInterest(
-                        poller_,
-                        fd,
-                        /*readable=*/true, // Replace with some rate limiting check
-                        /*writable=*/connection->want_write_
-                    );
+                    // If the connection has a protocol set, we can do work with it
+                    if (connection->protocol_) {
 
-                    // Update the peer's event interests, if we just changed them
-                    if (peer_connection) {
-                        (void)core::UpdateEventInterest(
-                            poller_,
-                            peer_connection->id_,
-                            /*readable=*/true, // Replace with some rate limiting check
-                            /*writable=*/peer_connection->want_write_
-                        );
+                        // Peer connection can be null if no upstream connection yet
+                        connection->protocol_->OnReadable(connection, peer_connection, poller_);
+
+                        // Figure out which protocol it is so we know what to do
+                        switch (connection->protocol_->type()) {
+                            case core::protocol::ProtocolType::kSocks4: {
+                                auto* socks4 = dynamic_cast<core::protocol::Socks4*>(connection->protocol_.get());
+                                if (connection->peer_socket_id_ == -1 &&
+                                    socks4->state() == core::protocol::Socks4::State::Established) {
+                                        core::CreateUpstreamTCPConnection (
+                                            poller_,
+                                            connections_,
+                                            *connection,
+                                            socks4->destination_ip(),
+                                            socks4->destination_port()
+                                        );
+                                    }
+                                break;
+                            }
+                            case core::protocol::ProtocolType::kSocks4a: {
+                                break;
+                            }
+                            case core::protocol::ProtocolType::kSocks5: {
+                                break;
+                            }
+                            case core::protocol::ProtocolType::kHttp: {
+                                break;
+                            }
+                            default: {
+                                break;
+                            }
+                        }
+                    }
+                } else if (connection->role_ == core::ConnectionRole::Upstream) {
+                    // The client's connection protocol can handle forwarding upstream
+                    if (peer_connection && peer_connection->protocol_) {
+                        peer_connection->protocol_->OnReadable(connection, peer_connection, poller_);
                     }
                 }
 
-                // ----------------------------
+                // Update this connection's event interests
+                (void)core::UpdateEventInterest(
+                    poller_,
+                    fd,
+                    /*readable=*/true, // Replace with some rate limiting check
+                    /*writable=*/connection->want_write_
+                );
+
+                // Update the peer's event interests, if we just changed them
+                if (peer_connection) {
+                    (void)core::UpdateEventInterest(
+                        poller_,
+                        peer_connection->id_,
+                        /*readable=*/true, // Replace with some rate limiting check
+                        /*writable=*/peer_connection->want_write_
+                    );
+                }
+
+                // ----------------------------------
                 // 3. WRITABLE: drain send_buffer
-                // ----------------------------
+                // ----------------------------------
                 if (mask & core::kEventWritable) {
 
-      
                     if (connection->protocol_) {
-                         connection->protocol_->OnWritable(connection, peer_connection, poller_);
+                        connection->protocol_->OnWritable(connection, peer_connection, poller_);
                     }
 
-                    // Attempt to drain as much as possible durring this event from the send_buffer
                     (void)connection->Write();
 
                     (void)core::UpdateEventInterest(
@@ -248,20 +251,17 @@ namespace server {
                         /*readable=*/true, // Add some sort of rate limiting later
                         /*writable=*/connection->want_write_
                     );
-                 
                 }
-            }
-        }
-
-        CleanUpResources();
+            }        
+        }    
+        CleanUpResources(); 
     }
 
-
+    
     void ProxyServer::CleanUpResources() {
-
-        // Close all connections
-        for (auto it = connections_.begin(); it != connections_.end(); ) {
-            it = connections_.erase(it); //Returns the next it
+        // Remove all connections
+        for (auto it = connections_.begin(); it != connections_.end();) {
+            it = connections_.erase(it);
         }
 
         // Close poller
@@ -287,13 +287,13 @@ namespace server {
             "\r\n"
             "Hello from your proxy server!\n";
 
-
         const std::size_t kLen = sizeof(kResponse) - 1;
         const std::size_t old_size = connection.send_buffer_.size();
+
         connection.send_buffer_.resize(old_size + kLen);
         std::memcpy(connection.send_buffer_.data() + old_size, kResponse, kLen);
         connection.want_write_ = true;
     }
 
+} // namespace server
 
-} //namespace server

@@ -4,11 +4,6 @@
 #include "network.h"
 #include "connection.h"
 
-// Include DNS header
-#include "dns.h"
-#include <memory>
-#include <thread>
-
 
 // I know the header define looks long and weird
 // but it follows the format
@@ -16,9 +11,12 @@
 
 namespace server {
 
-    class ProxyServer final {
-    public:
-        void Run();
+class ProxyServer final {
+public:
+
+    void SetConfig(Config& cfg);
+
+    void Run();
 
     private:
     // TODO: Let the user specify these later
@@ -30,13 +28,11 @@ namespace server {
         core::EventPollerIdentifier poller_{};
         core::ConnectionMap connections_;
 
-        //DNS stuff
-        std::unique_ptr<DNSForwarder> dns_forwarder_;
-        std::thread dns_thread_;
+    void CleanUpResources();
+    void HealthResponse(core::Connection& connection);
+};
 
-        void CleanUpResources();
-        void HealthResponse(core::Connection& connection);
-    };
 } // namespace server
 
 #endif // PROXY_SERVER_SERVER_PROXY_SERVER_H_
+
