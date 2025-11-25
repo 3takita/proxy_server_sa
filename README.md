@@ -1,76 +1,51 @@
-# Proxy Server
+# Forward Proxy Server
+A lightweight C++ proxy server supporting SOCKS4 and SOCKS4a. Designed for performance and OS portablity, with plans to support SOCKS5 and HTTP/HTTPS in future releases.
 
-A simple TCP proxy server implemented in C++20 for Linux systems.  
-This server demonstrates non-blocking network I/O using `epoll` and supports configurable options via command-line arguments.
+## Contributors
+- Chris Manlove
+- Ellie Winter
+- Stephen Anaba
+- Benjamin Lac
+- Yordy Raya Sanchez
 
----
+## Language 
+C++ 20
 
-## Features
+## Supported Operating Systems
+- Linux
+- MacOS
+- Windows (Future plans)
 
-- Non-blocking TCP server using `epoll`.
-- Configurable:
-  - Port (`--port`)
-  - Maximum backlog (`--backlog`)
-  - Maximum events per `epoll_wait` (`--max-events`)
-  - Bind host (`--bind-host`)
-  - Verbose logging (`--verbose`)
-  - Graceful client connection handling.
----
+## Build & Run Instructions
 
-## Requirements
+```
+git clone https://github.com/DrChrisHax/Proxy_Server.git
+cd Proxy_Server
+make run
+```
 
-- Linux system
-- C++20 compatible compiler (tested with `g++`)
-- `make` build system
+This will start the server on port 8080.
 
----
+## Server Argument Info
 
-## Building
-
-```bash
-git clone git@github.com:DrChrisHax/Proxy_Server.git
-cd proxy_server
-
-This will compile the server and place the binary in the ./bins directory:
-
-./bins/proxy_server
-
-Running
-./bins/proxy_server [OPTIONS]
-
-Available Options
-Option	Description
 --port N	TCP port to listen on (default: 8080)
 --backlog N	Maximum number of pending connections (default: 128)
 --max-events N	Maximum number of events returned by epoll (default: 16)
 --bind-host IP	IP address/interface to bind (default: all interfaces)
 --verbose	Enable verbose logging
 --help	Show usage information
-Example
-./bins/proxy_server --port 9090 --verbose
 
-Testing the Server
+## About
+The proxy listens on a TCP socket, detects the incoming protocol, and establishes an upstream connection for traffic relay.
 
-Start the server:
+### Supported:
+  - Socks4 / Socks4a
+### Planned:
+  - Socks5
+  - HTTP/HTTPS
+  - Windows support
 
-./bins/proxy_server --port 9090 --verbose
-
-
-In another terminal, test with nc (netcat):
-
-nc 127.0.0.1 9090
-
-
-The server will print a message like:
-
-[Connection] New client: 127.0.0.1:<port>
+## Additional Info
+This project follows the App-Core model. Code related specifically to the proxy server is in a library called Server. This library is OS agnostic and links against the Core library. Core contains OS specific code as well as common functions that could potentially be user in a proxy server client. The Core library does not link against the Server library.
 
 
-The client can be disconnected gracefully using Ctrl+D or by closing the netcat session.
-
-Verify the listening port with:
-
-ss -tuln | grep 9090
-
-Note
-Licensed under the MIT License. See LICENSE file for details.

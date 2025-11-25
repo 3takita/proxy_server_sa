@@ -9,13 +9,16 @@ namespace server {
 
 class ProxyServer final {
 public:
+
+    void SetConfig(Config& cfg);
+
     void Run();
 
 private:
     core::SocketIdentifier socket_{};
     core::EventPollerIdentifier poller_{};
     core::ConnectionMap connections_;
-    core::Config config_{};
+    server::Config config_{};
 
     void CleanUpResources();
     void HealthResponse(core::Connection& connection);

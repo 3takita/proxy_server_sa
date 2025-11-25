@@ -3,13 +3,11 @@
 
 int main(int argc, char* argv[]) {
     // Parse command-line arguments into Config
-    core::Config cfg = core::Config::FromArgs(argc, argv);
-
-    // Initialize global config singleton
-    core::InitializeConfig(cfg);
+    server::Config cfg = server::ParseConfig(argc, argv);
 
     // Run the proxy
     server::ProxyServer proxy;
+    proxy.SetConfig(cfg);
     proxy.Run();
 
     return 0;

@@ -7,273 +7,292 @@
 #include "utils/string_utils.h"
 
 #include <cstring>
-#include <iostream>
+#include <iostream> // Remove after Logger exists
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 
 namespace server {
 
-void ProxyServer::Run() 
-{
-    (void)core::InitializeNetwork();
-
-    // -----------------------------
-    // Use config from config.h/.cc
-    // -----------------------------
-    const auto& cfg = core::GetConfig();
-
-    socket_ = core::CreateListeningSocket(cfg.bind_host, cfg.port, cfg.backlog);
-
-    if (socket_ < 0) {
-        // TODO: add logger
-        return;
+    void ProxyServer::SetConfig(Config& cfg) {
+        config_ = cfg;
     }
 
-    if (!core::SetSocketNonBlocking(socket_)) {
-        CleanUpResources();
-        return;
-    }
+    void ProxyServer::Run() {
+        (void)core::InitializeNetwork();
 
-    poller_ = core::CreateEventPoller();
-    if (poller_ < 0) {
-        CleanUpResources();
-        return;
-    }
+        socket_ = core::CreateListeningSocket(config_.bind_host, config_.port, config_.backlog);
 
-    if (!core::RegisterReadEvent(poller_, socket_)) {
-        CleanUpResources();
-        return;
-    }
-
-    core::PollEvent events[static_cast<std::size_t>(cfg.max_events)];
-    bool running = true;
-
-    while (running) {
-
-        int n = core::WaitForEvents(
-            poller_,
-            events,
-            cfg.max_events,
-            -1
-        );
-
-        if (n < 0) {
-            // Rare epoll_wait failure
-            running = false;
-            break;
+        if (socket_ < 0) {
+            // TODO: Log failed to create a listening socket on port_
+            return;
         }
 
-        for (int i = 0; i < n; i++) {
+        if (!core::SetSocketNonBlocking(socket_)) {
+            // TODO: Log failed to set socket non-blocking
+            CleanUpResources();
+            return;
+        }
 
-            const auto fd = events[i].fd;
-            const auto mask = events[i].mask;
+        poller_ = core::CreateEventPoller();
+        if (poller_ < 0) {
+            // TODO: Log failed to create an epoll instance
+            CleanUpResources();
+            return;
+        }
 
-            // ----------------------------------
-            // Error or hangup event
-            // ----------------------------------
-            if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
-                if (fd == socket_) {
-                    running = false;
-                    break;
-                }
+        if (!core::RegisterReadEvent(poller_, socket_)) {
+            // TODO: Log failed to register socket with epoll
+            CleanUpResources();
+            return;
+        }
 
-                auto it = connections_.find(fd);
-                if (it != connections_.end()) {
-                    connections_.erase(it);
-                } else {
-                    core::CloseSocket(fd);
-                }
+        core::PollEvent events[static_cast<std::size_t>(config_.max_events)];
+        bool running = true;
+
+        while (running) {
+
+            const int TIMEOUT = -1; // Never timeout
+
+            int n = core::WaitForEvents(
+                poller_,
+                events,
+                config_.max_events,
+                TIMEOUT
+            );
+
+            if (n < 0) {
+                // TODO: Log epoll_wait error
+                // This is super rare but if it happens we may want to re-create epoll
+                // For now just exit
+                running = false;
+                break;
+            } else if (n == 0) {
+                // Not expected with timeout = -1
+                // But we should log it if it does happen
                 continue;
             }
 
-            // ----------------------------------
-            // 1. New incoming client connection
-            // ----------------------------------
-            if (fd == socket_) {
+            for (int i = 0; i < n; i++) {
 
-                std::vector<core::SocketIdentifier> accepted;
-                (void)AcceptNewClientConnection(socket_, poller_, connections_, &accepted);
+                const auto fd = events[i].fd;
+                const auto mask = events[i].mask;
 
-                // Logging (temporary)
-                for (auto a : accepted) {
-                    std::string ip;
-                    uint16_t port = 0;
-
-                    auto now = std::chrono::system_clock::now();
-                    std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-                    std::tm tm_buf{};
-                #ifdef _WIN32
-                    localtime_s(&tm_buf, &now_c);
-                #else
-                    localtime_r(&now_c, &now_c);
-                #endif
-                    std::ostringstream timestamp;
-                    timestamp << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
-
-                    if (core::SocketToAddress(a, ip, port)) {
-                        std::cout << "[" << timestamp.str() 
-                                  << "] [+] New connection " << a
-                                  << " from " << ip << ":" << port 
-                                  << std::endl;
+                // ----------------------------------
+                // Error or hangup event
+                // ----------------------------------
+                if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
+                    if (fd == socket_) {
+                        running = false;
+                        break;
                     }
-                }
-                continue;
-            }
 
-            // -----------------------------
-            // Retrieve connection
-            // -----------------------------
-            auto it = connections_.find(fd);
-            if (it == connections_.end()) continue;
-
-            core::Connection* connection = &it->second;
-
-            core::Connection* peer_connection = nullptr;
-            if (connection->peer_socket_id_ != -1) {
-                auto pit = connections_.find(connection->peer_socket_id_);
-                if (pit != connections_.end()) {
-                    peer_connection = &pit->second;
-                } else {
-                    connection->peer_socket_id_ = -1;
-                }
-            }
-
-            // ----------------------------------
-            // 2. READABLE
-            // ----------------------------------
-            if (mask & core::kEventReadable) {
-
-                if (connection->Read() != core::ConnectionResult::OK) {
-                    if (connection->closed_) {
+                    auto it = connections_.find(fd);
+                    if (it != connections_.end()) {
                         connections_.erase(it);
+                    } else {
+                        core::CloseSocket(fd);
                     }
                     continue;
                 }
 
-                if (connection->role_ == core::ConnectionRole::Client) {   
-                    if (connection->protocol_) {
-                        connection->protocol_->OnReadable(
-                            connection, 
-                            peer_connection, 
-                            poller_
-                    );
+                // ----------------------------------
+                // 1. Handle New Connections
+                // ----------------------------------
+                if (fd == socket_) {
+                    std::vector<core::SocketIdentifier> accepted;
+                    (void)AcceptNewClientConnection(socket_, poller_, connections_, &accepted);
 
-                    // If SOCKS4 established, create upstream connection
-                    if (connection->protocol_->type() 
-                                == core::protocol::ProtocolType::kSocks4) {
-                            
-                            auto* socks4 = dynamic_cast<core::protocol::Socks4*>(
-                                connection->protocol_.get());
+                    // TODO: Remove the accepted socket vector once the logger is in place
+                    // Do not change the AcceptNewConnections signature nor the functionality
+                    // of AcceptNewConnections other than adding in the Logger
+                    // Remove the printout here but keep the vector
+                    // We can revisit this when the Logger is in place
 
-                            if (socks4 &&
-                                connection->peer_socket_id_ == -1 &&
-                                socks4->state() == core::protocol::Socks4::State::Established) 
-                            {
-                                core::CreateUpstreamTCPConnection(
-                                    poller_,
-                                    connections_,
-                                    *connection,
-                                    socks4->destination_ip(),
-                                    socks4->destination_port()
-                                );
-                            }
+                    // Remove later
+                    for (auto a : accepted) {
+                        std::string ip;
+                        uint16_t port = 0;
+
+                        auto now = std::chrono::system_clock::now();
+                        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
+                        std::tm tm_buf{};
+                        #ifdef _WIN32
+                            localtime_s(&tm_buf, &now_c);
+                        #else
+                            localtime_r(&now_c, &tm_buf);
+                        #endif
+
+                        std::ostringstream timestamp;
+                        timestamp << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+
+                        if (core::SocketToAddress(a, ip, port)) {
+                            std::cout << "[" << timestamp.str() << "] [+] New connection " << a
+                                    << " from " << ip << ":" << port << std::endl;
+                        } else {
+                            std::cout << "[" << timestamp.str() << "] [+] New connection " << a
+                                    << " (address unavailable)" << std::endl;
                         }
-                    }
-
-                } else if (connection->role_ == core::ConnectionRole::Upstream) {
-
-                    if (peer_connection && peer_connection->protocol_) {
-                        peer_connection->protocol_->OnReadable(
-                            connection,
-                            peer_connection,
-                            poller_
-                        );
+                        
+                        continue;
                     }
                 }
 
+                // -----------------------------
+                // Retrieve connection
+                // -----------------------------
+                auto it = connections_.find(fd);
+                if (it == connections_.end()) continue;
+
+                core::Connection* connection = &it->second;
+
+                // Also find the peer if it exists
+                core::Connection* peer_connection = nullptr;
+                if (connection->peer_socket_id_ != -1) {
+                    auto pit = connections_.find(connection->peer_socket_id_);
+                    if (pit != connections_.end()) {
+                        peer_connection = &pit->second;
+                    } else {
+                        // Peer no longer exists --> clear the link
+                        connection->peer_socket_id_ = -1;
+                    }
+                }
+
+                // ----------------------------------
+                // 2. READABLE: read and stage response when ready
+                // ----------------------------------
+                if (mask & core::kEventReadable) {
+                    if (connection->Read() != core::ConnectionResult::OK) {
+                        if (connection->closed_) {
+                            connections_.erase(it);
+                        }
+                        continue;
+                    }
+                }
+
+
+
+                // Uncomment below to see user requests outputed to the console
+                //std::cout << core::utils::bytesToReadableString(connection.receive_buffer_) << std::endl;
+                //std::cout << core::utils::bytesToHex(connection->receive_buffer_) << std::endl;
+
+                if (connection->role_ == core::ConnectionRole::Client) {
+                    if (!connection->protocol_) {
+                        (void)connection->SetProtocol();
+                    }
+
+                    // If the connection has a protocol set, we can do work with it
+                    if (connection->protocol_) {
+                        // Peer connection can be null if no upstream connection yet
+                        connection->protocol_->OnReadable(connection, peer_connection, poller_);
+
+                        // Figure out which protocol it is so we know what to do
+                        switch (connection->protocol_->type()) {
+                            case core::protocol::ProtocolType::kSocks4: {
+                                auto* socks4 = dynamic_cast<core::protocol::Socks4*>(connection->protocol_.get());
+                                if (connection->peer_socket_id_ == -1 &&
+                                    socks4->state() == core::protocol::Socks4::State::Established) {
+                                        core::CreateUpstreamTCPConnection (
+                                            poller_,
+                                            connections_,
+                                            *connection,
+                                            socks4->destination_ip(),
+                                            socks4->destination_port()
+                                        );
+                                    }
+                                break;
+                            }
+                            case core::protocol::ProtocolType::kSocks4a: {
+                                break;
+                            }
+                            default: {
+                                break;
+                            }
+                        }
+                    }
+                } else if (connection->role_ == core::ConnectionRole::Upstream) {
+                    // The client's connection protocol can handle forwarding upstream
+                    if (peer_connection && peer_connection->protocol_) {
+                        peer_connection->protocol_->OnReadable(connection, peer_connection, poller_);
+                    }
+                }
+
+                // Update this connection's event interests
                 (void)core::UpdateEventInterest(
                     poller_,
                     fd,
-                    true,
-                    connection->want_write_
+                    /*readable=*/true, // Replace with some rate limiting check
+                    /*writable=*/connection->want_write_
                 );
 
+                // Update the peer's event interests, if we just changed them
                 if (peer_connection) {
                     (void)core::UpdateEventInterest(
                         poller_,
                         peer_connection->id_,
-                        true,
-                        peer_connection->want_write_
-                    );
-                }
-            }
-
-            // ----------------------------------
-            // 3. WRITABLE
-            // ----------------------------------
-            if (mask & core::kEventWritable) {
-
-                if (connection->protocol_) {
-                    connection->protocol_->OnWritable(
-                        connection,
-                        peer_connection,
-                        poller_
+                        /*readable=*/true, // Replace with some rate limiting check
+                        /*writable=*/peer_connection->want_write_
                     );
                 }
 
-                (void)connection->Write();
+                // ----------------------------------
+                // 3. WRITABLE: drain send_buffer
+                // ----------------------------------
+                if (mask & core::kEventWritable) {
 
-                (void)core::UpdateEventInterest(
-                    poller_,
-                    fd,
-                    true,
-                    connection->want_write_
-                );
-            }
+                    if (connection->protocol_) {
+                        connection->protocol_->OnWritable(connection, peer_connection, poller_);
+                    }
 
-        } // for(n events)
-    } // while(running)
+                    (void)connection->Write();
 
-    CleanUpResources();
-}
-
-void ProxyServer::CleanUpResources() 
-{
-    // Remove all connections
-    for (auto it = connections_.begin(); it != connections_.end();) {
-        it = connections_.erase(it);
+                    (void)core::UpdateEventInterest(
+                        poller_,
+                        fd,
+                        /*readable=*/true, // Add some sort of rate limiting later
+                        /*writable=*/connection->want_write_
+                    );
+                }
+            }        
+        }    
+        CleanUpResources(); 
     }
 
-    if (poller_ > 0) {
-        core::CloseSocket(poller_);
-        poller_ = 0;
+    
+    void ProxyServer::CleanUpResources() {
+        // Remove all connections
+        for (auto it = connections_.begin(); it != connections_.end();) {
+            it = connections_.erase(it);
+        }
+
+        if (poller_ > 0) {
+            core::CloseSocket(poller_);
+            poller_ = 0;
+        }
+
+        if (socket_ > 0) {
+            core::CloseSocket(socket_);
+            socket_ = 0;
+        }
+
+        core::ShutDownNetwork();
     }
 
-    if (socket_ > 0) {
-        core::CloseSocket(socket_);
-        socket_ = 0;
+    void ProxyServer::HealthResponse(core::Connection& connection) {
+        static const char kResponse[] =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 30\r\n"
+            "\r\n"
+            "Hello from your proxy server!\n";
+
+        const std::size_t kLen = sizeof(kResponse) - 1;
+        const std::size_t old_size = connection.send_buffer_.size();
+
+        connection.send_buffer_.resize(old_size + kLen);
+        std::memcpy(connection.send_buffer_.data() + old_size, kResponse, kLen);
+        connection.want_write_ = true;
     }
-
-    core::ShutDownNetwork();
-}
-
-void ProxyServer::HealthResponse(core::Connection& connection) 
-{
-    static const char kResponse[] =
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/plain\r\n"
-        "Content-Length: 30\r\n"
-        "\r\n"
-        "Hello from your proxy server!\n";
-
-    const std::size_t kLen = sizeof(kResponse) - 1;
-    const std::size_t old_size = connection.send_buffer_.size();
-
-    connection.send_buffer_.resize(old_size + kLen);
-    std::memcpy(connection.send_buffer_.data() + old_size, kResponse, kLen);
-    connection.want_write_ = true;
-}
 
 } // namespace server
 
