@@ -1,4 +1,6 @@
 // dns_linux.cc
+#include "dns.h"
+
 #include <arpa/inet.h>
 #include <netdb.h>
 #include <cstring>
