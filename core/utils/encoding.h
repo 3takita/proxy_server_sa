@@ -2,16 +2,19 @@
 #define CORE_UTILS_ENCODING_H_
 
 #include <string>
-#include <vector>
-#include "sha256.h"
+#include <string_view>
 
-struct Base64Utils {
-  static std::string Encode(const std::string& input);
-  static std::string Decode(const std::string& input);
-};
+namespace core::utils {
 
-struct HashUtils {
-  static std::string Sha256(const std::string& input);
-};
+  struct Base64Utils {
+    static std::string Encode(const std::string_view input);
+    static std::string Decode(const std::string_view input);
+  };
+
+  struct HashUtils {
+    static std::string Sha256(const std::string_view input);
+  };
+
+} // namespace core::utils
 
 #endif  // CORE_UTILS_ENCODING_H_
