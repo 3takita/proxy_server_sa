@@ -3,31 +3,28 @@
 
 #include "network.h"
 #include "connection.h"
-
-
-// I know the header define looks long and weird
-// but it follows the format
-// Project_Name_Namespace_File_Name
+#include "config.h"
 
 namespace server {
 
-    class ProxyServer final {
-    public:
-        void Run();
+class ProxyServer final {
+public:
 
-    private:
-    // TODO: Let the user specify these later
-    // with command line arguments
-        int port_{ 8080 };
-        int backlog_{ 128 };
-        int max_events_{ 16 };
-        core::SocketIdentifier socket_{};
-        core::EventPollerIdentifier poller_{};
-        core::ConnectionMap connections_;
+    void SetConfig(Config& cfg);
 
-        void CleanUpResources();
-        void HealthResponse(core::Connection& connection);
-    };
+    void Run();
+
+private:
+    core::SocketIdentifier socket_{};
+    core::EventPollerIdentifier poller_{};
+    core::ConnectionMap connections_;
+    server::Config config_{};
+
+    void CleanUpResources();
+    void HealthResponse(core::Connection& connection);
+};
+
 } // namespace server
 
 #endif // PROXY_SERVER_SERVER_PROXY_SERVER_H_
+
