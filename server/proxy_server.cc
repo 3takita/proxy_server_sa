@@ -8,6 +8,7 @@
 
 #include <cstring>
 #include <iostream> // Remove after Logger exists
+#include <vector>
 #include <chrono>
 #include <iomanip>
 #include <sstream>
@@ -46,6 +47,7 @@ namespace server {
             CleanUpResources();
             return;
         }
+
 
         core::PollEvent events[static_cast<std::size_t>(config_.max_events)];
         bool running = true;
