@@ -3,11 +3,12 @@
 #include <iomanip>
 #include <sstream>
 
-Logger::Logger(const std::string& filename) {
-    file.open(filename, std::ios::app);
-}
+namespace core::logger {
 
-void Logger::write(const std::string& level, const std::string& msg) {
+Logger::Logger(std::string_view filename)
+    : file(std::string(filename), std::ios::app) {}
+
+void Logger::write(std::string_view level, std::string_view msg) {
     std::lock_guard<std::mutex> guard(lock);
 
     auto now = std::chrono::system_clock::now();
@@ -23,17 +24,9 @@ void Logger::write(const std::string& level, const std::string& msg) {
     }
 }
 
-void Logger::info(const std::string& msg) {
-    write("INFO", msg);
-}
+void Logger::info(std::string_view msg) { write("INFO", msg); }
+void Logger::warning(std::string_view msg) { write("WARNING", msg); }
+void Logger::error(std::string_view msg) { write("ERROR", msg); }
+void Logger::critical(std::string_view msg) { write("CRITICAL", msg); }
 
-void Logger::warning(const std::string& msg) {
-    write("WARNING", msg);
-}
-
-void Logger::error(const std::string& msg) {
-    write("ERROR", msg);
-}
-void Logger::critical(const std::string& msg) {
-    write("CRITICAL", msg);
 }

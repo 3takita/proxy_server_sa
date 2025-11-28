@@ -25,11 +25,14 @@ namespace server {
         socket_ = core::CreateListeningSocket(config_.bind_host, config_.port, config_.backlog);
 
         if (socket_ < 0) {
+            logger_.critical(("Failed to create listening socket on port ") + std::to_string(config_.port));
+            
             // TODO: Log failed to create a listening socket on port_
             return; // We can't do anything without a listening socket
         }
 
         if (!core::SetSocketNonBlocking(socket_)) {
+            logger_.error("Failed to set listening socket non-blocking");
             // TODO: Log failed to set socket non-blocking
             CleanUpResources();
             return;
@@ -37,12 +40,14 @@ namespace server {
 
         poller_ = core::CreateEventPoller();
         if (poller_ < 0) {
+            logger_.critical("Failed to create epoll instance");
             // TODO: Log failed to create an epoll instance
             CleanUpResources();
             return;
         }
 
         if (!core::RegisterReadEvent(poller_, socket_)) {
+            logger_.critical("Failed to register listening socket with epoll");
             // TODO: Log failed to register socket with epoll
             CleanUpResources();
             return;
@@ -57,12 +62,14 @@ namespace server {
             int n = core::WaitForEvents(poller_, events, config_.max_events, TIMEOUT);
 
             if (n < 0) {
+                logger_.error("epoll_wait failed");
                 // TODO: Log epoll_wait error
                 // This is super rare but if it happens we may want to re-create epoll
                 // For now just exit
                 running = false;
                 break;
             } else if (n == 0) {
+                logger_.info("epoll_wait equals 0")
                 // Not expected with timeout = -1
                 // But we should log it if it does happen
                 continue;
@@ -79,6 +86,7 @@ namespace server {
                 if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
                     if (fd == socket_) {
                         // TODO: Log fatal listening socket error/hangup
+                        logger_.critical("Listening socket fatal error/hangup");
                         running = false;
                         break;
                     }

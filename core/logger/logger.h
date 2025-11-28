@@ -1,24 +1,28 @@
-#ifndef LOGGER_H
-#define LOGGER_H
+#ifndef CORE_LOGGER_H
+#define CORE_LOGGER_H
 
 #include <fstream>
-#include <string>
+#include <string_view>
 #include <mutex>
+
+namespace core::logger {
 
 class Logger {
 public:
-    explicit Logger(const std::string& filename);
+    explicit Logger(std::string_view filename);
 
-    void info(const std::string& msg);
-    void warning(const std::string& msg);
-    void error(const std::string& msg);
-    void critical(const std::string& msg);
+    void info(std::string_view msg);
+    void warning(std::string_view msg);
+    void error(std::string_view msg);
+    void critical(std::string_view msg);
 
 private:
     std::ofstream file;
     std::mutex lock;
 
-    void write(const std::string& level, const std::string& msg);
+    void write(std::string_view level, std::string_view msg);
 };
+
+}
 
 #endif

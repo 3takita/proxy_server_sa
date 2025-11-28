@@ -3,6 +3,8 @@
 
 #include "network.h"
 #include "protocol/protocol.h"
+#include "logger/logger.h" 
+
 
 #include <vector>
 #include <cstddef>
@@ -34,8 +36,8 @@ namespace core {
     public:
 
         // Constructors & Destructors
-        Connection() noexcept;
-        Connection(core::SocketIdentifier id, ConnectionRole role) noexcept;
+        Connection(core::logger::Logger& logger) noexcept;
+        Connection(core::SocketIdentifier id, ConnectionRole role, core::logger::Logger& logger) noexcept;
         ~Connection();
 
         // Copy Semantics --> Delete
@@ -72,6 +74,7 @@ namespace core {
         bool closed_;
 
         std::unique_ptr<core::protocol::Protocol> protocol_;
+        core::logger::Logger& logger_;
     };
 
     using ConnectionMap = std::unordered_map<core::SocketIdentifier, Connection> ;

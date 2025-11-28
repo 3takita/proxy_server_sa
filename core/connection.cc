@@ -1,6 +1,8 @@
 #include "connection.h"
 #include "network_constants.h"
 
+
+#include "logger/logger.h"
 #include "protocol/detector.h"
 #include "protocol/protocol.h"
 #include "protocol/socks5.h"
@@ -12,11 +14,11 @@
 namespace core {
 
     // Constructors and Destructor
-
-    Connection::Connection() noexcept :
+    
+    Connection::Connection(core::logger::Logger& logger) noexcept :
         id_{-1},
         role_{},
-        peer_socket_id_{-1},
+        peer_socket_id_{-1}, 
         receive_buffer_{},
         send_buffer_{},
         want_write_{false},
@@ -24,7 +26,7 @@ namespace core {
         protocol_{nullptr} 
         {}
     
-    Connection::Connection(core::SocketIdentifier id, ConnectionRole role) noexcept :
+    Connection::Connection(core::SocketIdentifier id, ConnectionRole role, core::logger::Logger& logger) noexcept :
         id_{id},
         role_{role},
         peer_socket_id_{-1},
@@ -32,7 +34,8 @@ namespace core {
         send_buffer_{},
         want_write_{false},
         closed_{false},
-        protocol_{nullptr} 
+        protocol_{nullptr},
+        logger_{logger}
         {}
 
     Connection::~Connection() {
@@ -96,6 +99,7 @@ namespace core {
             }
 
             if (n == 0) {
+                logger_.info("Peer closed connection gracefully");
                 // TODO: Log peer closed connection gracefully
                 closed_ = true;
                 break;
@@ -107,6 +111,7 @@ namespace core {
         }
 
         if (closed_) {
+            logger_.info("Peer closed connection gracefully");
             // TODO: Log client closed gracefully
             Close();
             return ConnectionResult::PeerClosed;
@@ -157,10 +162,13 @@ namespace core {
 
         switch (type) {
             case core::protocol::ProtocolType::kHttp:
+                logger_.warning("HTTP protocol not implemented yet");
                 // TODO: protocol_ = std::make_unique<Http>();
                 return false; // not implemented yet
             case core::protocol::ProtocolType::kSocks5:
                 // protocol_ = std::make_unique<core::protocol::Socks5>();
+                logger_.warning("Socks5 protocol not implemented yet");
+
                 return false; 
             case core::protocol::ProtocolType::kSocks4:
                 protocol_ = std::make_unique<core::protocol::Socks4>();
@@ -174,7 +182,7 @@ namespace core {
     }
 
     ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
-                                               ConnectionMap& connections,
+                                               core::logger::Logger& logger, ConnectionMap& connections,
                                                std::vector<core::SocketIdentifier>* accepted_out) {
         
         while (true) {
@@ -182,12 +190,14 @@ namespace core {
 
             if (client_socket < 0) {
                 // TODO: Log info - no more queued connections, or accept() failed
+                logger.info("No more queued connections or accept() failed");
                 return ConnectionResult::OK; 
             }
 
             if (!core::SetSocketNonBlocking(client_socket)) {
                 // TODO: Log that client socket could not be set non-blocking
                 // Continuing could block the event loop so we have to close
+                logger.error("Client socket could not be set non-blocking, closing");
                 core::CloseSocket(client_socket);
                 continue; // We do not need to fail the whole loop
             }
@@ -205,7 +215,7 @@ namespace core {
             connections.emplace(client_socket, std::move(c));
 
             if (accepted_out != nullptr) accepted_out->push_back(client_socket);
-
+                logger.info("Log that the client is accepted and registered with epoll");
             // TODO: Log that the client is accepted and registered with epoll
         }
     }

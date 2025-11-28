@@ -4,6 +4,7 @@
 #include "network.h"
 #include "connection.h"
 #include "config.h"
+#include "logger/logger.h"
 
 namespace server {
 
@@ -19,6 +20,7 @@ private:
     core::EventPollerIdentifier poller_{};
     core::ConnectionMap connections_;
     server::Config config_{};
+    core::logger::Logger logger_{"proxy_server.log"};
 
     void CleanUpResources();
     void HealthResponse(core::Connection& connection);
