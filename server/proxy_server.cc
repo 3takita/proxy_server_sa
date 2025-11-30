@@ -15,9 +15,7 @@
 
 namespace server {
 
-    void ProxyServer::SetConfig(Config& cfg) {
-        config_ = cfg;
-    }
+    ProxyServer::ProxyServer(const Config& cfg) : config_(cfg), logger_{cfg.log_file_name} {}
 
     void ProxyServer::Run() {
         (void)core::InitializeNetwork();
@@ -25,11 +23,14 @@ namespace server {
         socket_ = core::CreateListeningSocket(config_.bind_host, config_.port, config_.backlog);
 
         if (socket_ < 0) {
+            logger_.critical(("Failed to create listening socket on port ") + std::to_string(config_.port));
+            
             // TODO: Log failed to create a listening socket on port_
             return; // We can't do anything without a listening socket
         }
 
         if (!core::SetSocketNonBlocking(socket_)) {
+            logger_.error("Failed to set listening socket non-blocking");
             // TODO: Log failed to set socket non-blocking
             CleanUpResources();
             return;
@@ -37,12 +38,14 @@ namespace server {
 
         poller_ = core::CreateEventPoller();
         if (poller_ < 0) {
+            logger_.critical("Failed to create epoll instance");
             // TODO: Log failed to create an epoll instance
             CleanUpResources();
             return;
         }
 
         if (!core::RegisterReadEvent(poller_, socket_)) {
+            logger_.critical("Failed to register listening socket with epoll");
             // TODO: Log failed to register socket with epoll
             CleanUpResources();
             return;
@@ -57,12 +60,14 @@ namespace server {
             int n = core::WaitForEvents(poller_, events, config_.max_events, TIMEOUT);
 
             if (n < 0) {
+                logger_.error("epoll_wait failed");
                 // TODO: Log epoll_wait error
                 // This is super rare but if it happens we may want to re-create epoll
                 // For now just exit
                 running = false;
                 break;
             } else if (n == 0) {
+                logger_.info("epoll_wait equals 0");
                 // Not expected with timeout = -1
                 // But we should log it if it does happen
                 continue;
@@ -79,6 +84,7 @@ namespace server {
                 if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
                     if (fd == socket_) {
                         // TODO: Log fatal listening socket error/hangup
+                        logger_.critical("Listening socket fatal error/hangup");
                         running = false;
                         break;
                     }
@@ -97,7 +103,7 @@ namespace server {
                 // ----------------------------
                 if (fd == socket_) {
                     std::vector<core::SocketIdentifier> accepted;
-                    (void)AcceptNewClientConnection(socket_, poller_, connections_, &accepted);
+                    (void)AcceptNewClientConnection(socket_, poller_, logger_, connections_, &accepted);
 
                     // TODO: Remove the accepted socket vector once the logger is in place
                     // Do not change the AcceptNewConnections signature nor the functionality
@@ -171,7 +177,18 @@ namespace server {
 
                 if (connection->role_ == core::ConnectionRole::Client) {
                     if (!connection->protocol_) {
-                        (void)connection->SetProtocol();
+                        bool known = connection->SetProtocol();
+
+                        if (!known || !connection->protocol_) {
+                            logger_.info("Unknown connection protocol; sending health response");
+                            HealthResponse(*connection);
+                            (void)core::UpdateEventInterest(
+                                poller_, 
+                                fd, 
+                                /*readable=*/true, 
+                                /*writable=*/true);
+                            continue;
+                        }
                     }
 
                     // If the connection has a protocol set, we can do work with it
@@ -188,6 +205,7 @@ namespace server {
                                     socks4->state() == core::protocol::Socks4::State::Established) {
                                         core::CreateUpstreamTCPConnection (
                                             poller_,
+                                            logger_,
                                             connections_,
                                             *connection,
                                             socks4->destination_ip(),
@@ -197,16 +215,23 @@ namespace server {
                                 break;
                             }
                             case core::protocol::ProtocolType::kSocks4a: {
-                                break;
+                                [[fallthrough]];
                             }
                             case core::protocol::ProtocolType::kSocks5: {
-                                break;
+                                [[fallthrough]];
                             }
                             case core::protocol::ProtocolType::kHttp: {
-                                break;
+                                [[fallthrough]];
                             }
                             default: {
-                                break;
+                                logger_.warning("Protocol unknown or unimplemented; sending health response");
+                                HealthResponse(*connection);
+                                (void)core::UpdateEventInterest(
+                                    poller_, 
+                                    fd, 
+                                    /*readable=*/true, 
+                                    /*writable=*/true);
+                                continue;
                             }
                         }
                     }

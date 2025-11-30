@@ -27,7 +27,7 @@ OBJDIR := obj
 BINDIR := bin
 
 # ----- Source & Dependencies -----
-CORE_SRCS   := $(wildcard core/*.cc) $(wildcard core/os/$(PLATFORM)/*.cc) $(wildcard core/protocol/*.cc) $(wildcard core/utils/*.cc)
+CORE_SRCS   := $(wildcard core/*.cc) $(wildcard core/os/$(PLATFORM)/*.cc) $(wildcard core/protocol/*.cc) $(wildcard core/utils/*.cc) $(wildcard core/logger/*.cc)
 SERVER_SRCS := $(wildcard server/*.cc)
 
 CORE_OBJS    := $(patsubst %.cc,$(OBJDIR)/%.o,$(CORE_SRCS))
@@ -76,8 +76,6 @@ help:
 	@echo "  run         Build (incremental) and run ./$(BINDIR)/$(TARGET)"
 	@echo "  clean       Remove obj/ and bin/"
 	@echo "  help        Show this help"
-
-# ----- DNS Test Target -----
 
 # ----- Include dependencies if present -----
 -include $(DEPS)

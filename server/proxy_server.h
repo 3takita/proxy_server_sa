@@ -5,6 +5,7 @@
 #include "connection.h"
 #include "dns.h"
 #include "config.h"
+#include "logger/logger.h"
 
 #include <memory>
 #include <thread>
@@ -17,24 +18,17 @@ namespace server {
 
 class ProxyServer final {
 public:
+    explicit ProxyServer(const Config& config);
 
-    void SetConfig(Config& cfg);
     void Run();
 
 private:
-    // TODO: Let the user specify these later
-    // with command line arguments
-    int port_{ 8080 };
-    int backlog_{ 128 };
-    int max_events_{ 16 };
-    core::SocketIdentifier socket_{};
-    core::EventPollerIdentifier poller_{};
-    core::ConnectionMap connections_{};
-    server::Config config_{};
+    core::SocketIdentifier socket_;
+    core::EventPollerIdentifier poller_;
+    core::ConnectionMap connections_;
+    server::Config config_;
+    core::logger::Logger logger_;
 
-    //DNS stuff
-    std::unique_ptr<DNSForwarder> dns_forwarder_;
-    std::thread dns_thread_;
     void CleanUpResources();
     void HealthResponse(core::Connection& connection);
 };

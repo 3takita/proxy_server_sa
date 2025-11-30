@@ -1,6 +1,7 @@
 #include "connection.h"
-#include "network_constants.h"
 
+#include "network_constants.h"
+#include "logger/logger.h"
 #include "protocol/detector.h"
 #include "protocol/protocol.h"
 #include "protocol/socks5.h"
@@ -14,19 +15,20 @@
 namespace core {
 
     // Constructors and Destructor
-
-    Connection::Connection() noexcept :
+    
+    Connection::Connection(core::logger::Logger& logger) noexcept :
         id_{-1},
         role_{},
-        peer_socket_id_{-1},
+        peer_socket_id_{-1}, 
         receive_buffer_{},
         send_buffer_{},
         want_write_{false},
         closed_{false},
-        protocol_{nullptr} 
+        protocol_{nullptr},
+        logger_{logger}
         {}
     
-    Connection::Connection(core::SocketIdentifier id, ConnectionRole role) noexcept :
+    Connection::Connection(core::SocketIdentifier id, ConnectionRole role, core::logger::Logger& logger) noexcept :
         id_{id},
         role_{role},
         peer_socket_id_{-1},
@@ -34,7 +36,8 @@ namespace core {
         send_buffer_{},
         want_write_{false},
         closed_{false},
-        protocol_{nullptr} 
+        protocol_{nullptr},
+        logger_{logger}
         {}
 
     Connection::~Connection() {
@@ -49,7 +52,8 @@ namespace core {
         send_buffer_{std::move(other.send_buffer_)},
         want_write_{other.want_write_},
         closed_{other.closed_},
-        protocol_{std::move(other.protocol_)}
+        protocol_{std::move(other.protocol_)},
+        logger_{other.logger_}
     {
         // Invalidate the moved-from object so its destructor is harmless
         other.id_ = -1;
@@ -98,6 +102,7 @@ namespace core {
             }
 
             if (n == 0) {
+                logger_.info("Peer closed connection gracefully");
                 // TODO: Log peer closed connection gracefully
                 closed_ = true;
                 break;
@@ -109,6 +114,7 @@ namespace core {
         }
 
         if (closed_) {
+            logger_.info("Peer closed connection gracefully");
             // TODO: Log client closed gracefully
             Close();
             return ConnectionResult::PeerClosed;
@@ -159,10 +165,13 @@ namespace core {
 
         switch (type) {
             case core::protocol::ProtocolType::kHttp:
+                logger_.warning("HTTP protocol not implemented yet");
                 // TODO: protocol_ = std::make_unique<Http>();
                 return false; // not implemented yet
             case core::protocol::ProtocolType::kSocks5:
                 // protocol_ = std::make_unique<core::protocol::Socks5>();
+                logger_.warning("Socks5 protocol not implemented yet");
+
                 return false; 
             case core::protocol::ProtocolType::kSocks4:
                 protocol_ = std::make_unique<core::protocol::Socks4>();
@@ -175,21 +184,25 @@ namespace core {
         }
     }
 
-    ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
-                                               ConnectionMap& connections,
-                                               std::vector<core::SocketIdentifier>* accepted_out) {
+    ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, 
+                                                core::EventPollerIdentifier poller, 
+                                                core::logger::Logger& logger, 
+                                                ConnectionMap& connections,
+                                                std::vector<core::SocketIdentifier>* accepted_out) {
         
         while (true) {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
 
             if (client_socket < 0) {
                 // TODO: Log info - no more queued connections, or accept() failed
+                logger.info("No more queued connections or accept() failed");
                 return ConnectionResult::OK; 
             }
 
             if (!core::SetSocketNonBlocking(client_socket)) {
                 // TODO: Log that client socket could not be set non-blocking
                 // Continuing could block the event loop so we have to close
+                logger.error("Client socket could not be set non-blocking, closing");
                 core::CloseSocket(client_socket);
                 continue; // We do not need to fail the whole loop
             }
@@ -200,19 +213,20 @@ namespace core {
                 return ConnectionResult::EpollRegisterFailed;
             }
 
-            Connection c;
-            c.id_ = client_socket;
-            c.role_ = ConnectionRole::Client;
+            Connection c(client_socket, ConnectionRole::Client, logger);
             c.receive_buffer_.reserve(core::k_8KB);
+
             connections.emplace(client_socket, std::move(c));
 
-            if (accepted_out != nullptr) accepted_out->push_back(client_socket);
-
-            // TODO: Log that the client is accepted and registered with epoll
+            if (accepted_out != nullptr) {
+                accepted_out->push_back(client_socket);    
+            }
+            logger.info("Log that the client is accepted and registered with epoll");
         }
     }
 
     ConnectionResult CreateUpstreamTCPConnection(core::EventPollerIdentifier poller,
+                                                    core::logger::Logger& logger,
                                                     ConnectionMap& connections,
                                                     Connection& client,
                                                     const std::byte dest_ip[4],
@@ -252,9 +266,7 @@ namespace core {
             return ConnectionResult::EpollRegisterFailed;
         }
 
-        Connection upstream;
-        upstream.id_ = upstream_socket;
-        upstream.role_ = ConnectionRole::Upstream;
+        Connection upstream(upstream_socket, ConnectionRole::Upstream, logger);
         upstream.peer_socket_id_ = client.id_;
         upstream.receive_buffer_.reserve(core::k_8KB);
 
@@ -263,6 +275,7 @@ namespace core {
         // Link client to its upstream socket
         client.peer_socket_id_ = upstream_socket;
 
+        
         return ConnectionResult::OK;
     }
 
