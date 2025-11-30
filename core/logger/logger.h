@@ -9,6 +9,7 @@ namespace core::logger {
 
 class Logger {
 public:
+
     explicit Logger(std::string_view filename);
 
     void info(std::string_view msg);

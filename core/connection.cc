@@ -1,7 +1,6 @@
 #include "connection.h"
+
 #include "network_constants.h"
-
-
 #include "logger/logger.h"
 #include "protocol/detector.h"
 #include "protocol/protocol.h"
@@ -23,7 +22,8 @@ namespace core {
         send_buffer_{},
         want_write_{false},
         closed_{false},
-        protocol_{nullptr} 
+        protocol_{nullptr},
+        logger_{logger}
         {}
     
     Connection::Connection(core::SocketIdentifier id, ConnectionRole role, core::logger::Logger& logger) noexcept :
@@ -50,7 +50,8 @@ namespace core {
         send_buffer_{std::move(other.send_buffer_)},
         want_write_{other.want_write_},
         closed_{other.closed_},
-        protocol_{std::move(other.protocol_)}
+        protocol_{std::move(other.protocol_)},
+        logger_{other.logger_}
     {
         // Invalidate the moved-from object so its destructor is harmless
         other.id_ = -1;
@@ -181,9 +182,11 @@ namespace core {
         }
     }
 
-    ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
-                                               core::logger::Logger& logger, ConnectionMap& connections,
-                                               std::vector<core::SocketIdentifier>* accepted_out) {
+    ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, 
+                                                core::EventPollerIdentifier poller, 
+                                                core::logger::Logger& logger, 
+                                                ConnectionMap& connections,
+                                                std::vector<core::SocketIdentifier>* accepted_out) {
         
         while (true) {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
@@ -208,19 +211,20 @@ namespace core {
                 return ConnectionResult::EpollRegisterFailed;
             }
 
-            Connection c;
-            c.id_ = client_socket;
-            c.role_ = ConnectionRole::Client;
+            Connection c(client_socket, ConnectionRole::Client, logger);
             c.receive_buffer_.reserve(core::k_8KB);
+
             connections.emplace(client_socket, std::move(c));
 
-            if (accepted_out != nullptr) accepted_out->push_back(client_socket);
-                logger.info("Log that the client is accepted and registered with epoll");
-            // TODO: Log that the client is accepted and registered with epoll
+            if (accepted_out != nullptr) {
+                accepted_out->push_back(client_socket);    
+            }
+            logger.info("Log that the client is accepted and registered with epoll");
         }
     }
 
     ConnectionResult CreateUpstreamTCPConnection(core::EventPollerIdentifier poller,
+                                                    core::logger::Logger& logger,
                                                     ConnectionMap& connections,
                                                     Connection& client,
                                                     const std::byte dest_ip[4],
@@ -260,9 +264,7 @@ namespace core {
             return ConnectionResult::EpollRegisterFailed;
         }
 
-        Connection upstream;
-        upstream.id_ = upstream_socket;
-        upstream.role_ = ConnectionRole::Upstream;
+        Connection upstream(upstream_socket, ConnectionRole::Upstream, logger);
         upstream.peer_socket_id_ = client.id_;
         upstream.receive_buffer_.reserve(core::k_8KB);
 
@@ -271,6 +273,7 @@ namespace core {
         // Link client to its upstream socket
         client.peer_socket_id_ = upstream_socket;
 
+        
         return ConnectionResult::OK;
     }
 

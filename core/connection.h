@@ -5,7 +5,6 @@
 #include "protocol/protocol.h"
 #include "logger/logger.h" 
 
-
 #include <vector>
 #include <cstddef>
 #include <memory>
@@ -82,14 +81,17 @@ namespace core {
     // Accept as many queued connections as possible
     // Set them to non-blocking
     // Register for read events, and add them to a map of connections
-    ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, core::EventPollerIdentifier poller, 
-                                               ConnectionMap& connections, 
-                                               std::vector<core::SocketIdentifier>* accepted_out);
+    ConnectionResult AcceptNewClientConnection(core::SocketIdentifier socket, 
+                                                core::EventPollerIdentifier poller, 
+                                                core::logger::Logger& logger, 
+                                                ConnectionMap& connections, 
+                                                std::vector<core::SocketIdentifier>* accepted_out);
 
     // Creates an upstream (server --> internet) connection for a client.
     // dest_ip is 4 bytes of IPv4 address in network byte order,
     // dest_port is the port in network byte order
     ConnectionResult CreateUpstreamTCPConnection(core::EventPollerIdentifier poller,
+                                                    core::logger::Logger& logger,
                                                     ConnectionMap& connections,
                                                     Connection& client,
                                                     const std::byte dest_ip[4],

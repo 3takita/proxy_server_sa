@@ -15,9 +15,7 @@
 
 namespace server {
 
-    void ProxyServer::SetConfig(Config& cfg) {
-        config_ = cfg;
-    }
+    ProxyServer::ProxyServer(const Config& cfg) : config_(cfg), logger_{cfg.log_file_name} {}
 
     void ProxyServer::Run() {
         (void)core::InitializeNetwork();
@@ -69,7 +67,7 @@ namespace server {
                 running = false;
                 break;
             } else if (n == 0) {
-                logger_.info("epoll_wait equals 0")
+                logger_.info("epoll_wait equals 0");
                 // Not expected with timeout = -1
                 // But we should log it if it does happen
                 continue;
@@ -105,7 +103,7 @@ namespace server {
                 // ----------------------------
                 if (fd == socket_) {
                     std::vector<core::SocketIdentifier> accepted;
-                    (void)AcceptNewClientConnection(socket_, poller_, connections_, &accepted);
+                    (void)AcceptNewClientConnection(socket_, poller_, logger_, connections_, &accepted);
 
                     // TODO: Remove the accepted socket vector once the logger is in place
                     // Do not change the AcceptNewConnections signature nor the functionality
@@ -179,7 +177,18 @@ namespace server {
 
                 if (connection->role_ == core::ConnectionRole::Client) {
                     if (!connection->protocol_) {
-                        (void)connection->SetProtocol();
+                        bool known = connection->SetProtocol();
+
+                        if (!known || !connection->protocol_) {
+                            logger_.info("Unknown connection protocol; sending health response");
+                            HealthResponse(*connection);
+                            (void)core::UpdateEventInterest(
+                                poller_, 
+                                fd, 
+                                /*readable=*/true, 
+                                /*writable=*/true);
+                            continue;
+                        }
                     }
 
                     // If the connection has a protocol set, we can do work with it
@@ -196,6 +205,7 @@ namespace server {
                                     socks4->state() == core::protocol::Socks4::State::Established) {
                                         core::CreateUpstreamTCPConnection (
                                             poller_,
+                                            logger_,
                                             connections_,
                                             *connection,
                                             socks4->destination_ip(),
@@ -205,16 +215,23 @@ namespace server {
                                 break;
                             }
                             case core::protocol::ProtocolType::kSocks4a: {
-                                break;
+                                [[fallthrough]];
                             }
                             case core::protocol::ProtocolType::kSocks5: {
-                                break;
+                                [[fallthrough]];
                             }
                             case core::protocol::ProtocolType::kHttp: {
-                                break;
+                                [[fallthrough]];
                             }
                             default: {
-                                break;
+                                logger_.warning("Protocol unknown or unimplemented; sending health response");
+                                HealthResponse(*connection);
+                                (void)core::UpdateEventInterest(
+                                    poller_, 
+                                    fd, 
+                                    /*readable=*/true, 
+                                    /*writable=*/true);
+                                continue;
                             }
                         }
                     }
