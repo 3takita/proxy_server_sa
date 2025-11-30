@@ -53,6 +53,18 @@ int main(int argc, char* argv[]) {
     std::cout << "Passed: " << passed_tests << std::endl;
     std::cout << "Failed: " << failed_tests << std::endl;
     std::cout << std::endl;
+}
 
-
+// =============================================================================
+// Helper Functions
+// =============================================================================
+static inline bool test_helper(std::string_view expected, std::string_view result) {
+    if (result == expected) {
+        std::cout << "[PASS]" << std::endl;
+        return true;
+    } else {
+        std::cout << "[FAIL] Expected: " << expected << std::endl;
+        std::cout << "[FAIL] Got:      " << result << std::endl;
+        return false;
+    }
 }

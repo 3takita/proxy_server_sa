@@ -3,18 +3,6 @@
 
 #include <iostream>
 #include <string>
-#include <string_view>
-
-bool test_helper(std::string_view expected, std::string_view result) {
-    if (result == expected) {
-        std::cout << "[PASS]" << std::endl;
-        return true;
-    } else {
-        std::cout << "[FAIL] Expected: " << expected << std::endl;
-        std::cout << "[FAIL] Got:      " << result << std::endl;
-        return false;
-    }
-}
 
 bool Sha256TestEmptyString() {
     std::cout << "[TEST] Sha256: Empty string" << std::endl;
