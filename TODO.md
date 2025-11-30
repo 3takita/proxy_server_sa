@@ -10,6 +10,7 @@
 ## Minor
 - Add an option for setting an output file / to the console
 - Refine logging
+- Have the logger create a new log file every x period of time
 
 ## Bug fixes
 - 
