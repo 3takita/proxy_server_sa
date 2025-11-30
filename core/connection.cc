@@ -7,6 +7,8 @@
 #include "protocol/socks5.h"
 #include "protocol/socks4.h"
 
+#include "dns.h"
+
 #include <cerrno>
 #include <cstring>
 

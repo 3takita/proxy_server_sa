@@ -3,14 +3,21 @@
 
 #include "network.h"
 #include "connection.h"
+#include "dns.h"
 #include "config.h"
 #include "logger/logger.h"
+
+#include <memory>
+#include <thread>
+
+// I know the header define looks long and weird
+// but it follows the format
+// Project_Name_Namespace_File_Name
 
 namespace server {
 
 class ProxyServer final {
 public:
-
     explicit ProxyServer(const Config& config);
 
     void Run();
