@@ -4,21 +4,23 @@
 #include "network.h"
 #include "connection.h"
 #include "config.h"
+#include "logger/logger.h"
 
 namespace server {
 
 class ProxyServer final {
 public:
 
-    void SetConfig(Config& cfg);
+    explicit ProxyServer(const Config& config);
 
     void Run();
 
 private:
-    core::SocketIdentifier socket_{};
-    core::EventPollerIdentifier poller_{};
+    core::SocketIdentifier socket_;
+    core::EventPollerIdentifier poller_;
     core::ConnectionMap connections_;
-    server::Config config_{};
+    server::Config config_;
+    core::logger::Logger logger_;
 
     void CleanUpResources();
     void HealthResponse(core::Connection& connection);

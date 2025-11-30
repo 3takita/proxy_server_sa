@@ -3,11 +3,10 @@
 
 int main(int argc, char* argv[]) {
     // Parse command-line arguments into Config
-    server::Config cfg = server::ParseConfig(argc, argv);
+    server::Config config = server::ParseConfig(argc, argv);
 
     // Run the proxy
-    server::ProxyServer proxy;
-    proxy.SetConfig(cfg);
+    server::ProxyServer proxy{config};
     proxy.Run();
 
     return 0;

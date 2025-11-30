@@ -12,4 +12,7 @@
 # VSCode
 .vscode/
 
+# Log files
+*.log
+
 
