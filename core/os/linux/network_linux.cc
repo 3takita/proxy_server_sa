@@ -5,12 +5,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <errno.h>
-
 
 namespace core {
 
@@ -267,6 +267,78 @@ namespace core {
         ip = host;
         port = static_cast<uint16_t>(std::stoi(serv));
         return true;
+    }
+
+    bool GetSocketInfo(SocketIdentifier socket, ConnectionInfo& info) {
+        info.socket_id = socket;
+
+        // Get remote (peer) address
+        sockaddr_storage remote_addr{};
+        socklen_t remote_len = sizeof(remote_addr);
+        if (::getpeername(socket, reinterpret_cast<sockaddr*>(&remote_addr), &remote_len) == 0) {
+            char host[NI_MAXHOST];
+            char serv[NI_MAXSERV];
+            
+            int rc = ::getnameinfo(
+                reinterpret_cast<sockaddr*>(&remote_addr), 
+                remote_len, 
+                host, 
+                sizeof(host), 
+                serv, 
+                sizeof(serv), 
+                NI_NUMERICHOST | NI_NUMERICSERV
+            );
+            
+            if (rc == 0) {
+                info.source_ip = host;
+                info.source_port = static_cast<uint16_t>(std::stoi(serv));
+                info.is_ipv6 = (remote_addr.ss_family == AF_INET6);
+                info.info_available = true;
+            }
+        }
+
+        // Get local address
+        sockaddr_storage local_addr{};
+        socklen_t local_len = sizeof(local_addr);
+        if (::getsockname(socket, reinterpret_cast<sockaddr*>(&local_addr), &local_len) == 0) {
+            char host[NI_MAXHOST];
+            char serv[NI_MAXSERV];
+            
+            int rc = ::getnameinfo(
+                reinterpret_cast<sockaddr*>(&local_addr), 
+                local_len, 
+                host, 
+                sizeof(host), 
+                serv, 
+                sizeof(serv), 
+                NI_NUMERICHOST | NI_NUMERICSERV
+            );
+            
+            if (rc == 0) {
+                info.local_ip = host;
+                info.local_port = static_cast<uint16_t>(std::stoi(serv));
+            }
+        }
+
+        socklen_t optlen = sizeof(int);
+        ::getsockopt(socket, SOL_SOCKET, SO_SNDBUF, &info.send_buffer_size, &optlen);
+        ::getsockopt(socket, SOL_SOCKET, SO_RCVBUF, &info.recv_buffer_size, &optlen);
+
+        // Get keepalive status
+        int keepalive = 0;
+        optlen = sizeof(keepalive);
+        if (::getsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, &keepalive, &optlen) == 0) {
+            info.keepalive_enabled = (keepalive != 0);
+        }
+        
+        // Get TCP_NODELAY status
+        int nodelay = 0;
+        optlen = sizeof(nodelay);
+        if (::getsockopt(socket, IPPROTO_TCP, TCP_NODELAY, &nodelay, &optlen) == 0) {
+            info.tcp_nodelay = (nodelay != 0);
+        }
+        
+        return info.info_available;
     }
 
 } // namespace core

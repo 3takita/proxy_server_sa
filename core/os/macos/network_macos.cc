@@ -206,4 +206,9 @@ namespace core {
         return true;
     }
 
+    bool GetSocketInfo(SocketIdentifier socket, ConnectionInfo& info) {
+        // TODO: Implement
+        return false;
+    }
+
 } // namespace core

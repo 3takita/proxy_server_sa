@@ -102,8 +102,7 @@ namespace core {
             }
 
             if (n == 0) {
-                logger_.info("Peer closed connection gracefully");
-                // TODO: Log peer closed connection gracefully
+                logger_.info("Peer [fd:" + std::to_string(id_) + "] closed connection gracefully");
                 closed_ = true;
                 break;
             }
@@ -114,8 +113,7 @@ namespace core {
         }
 
         if (closed_) {
-            logger_.info("Peer closed connection gracefully");
-            // TODO: Log client closed gracefully
+            logger_.info("Peer [fd:" + std::to_string(id_) + "] closed connection gracefully");
             Close();
             return ConnectionResult::PeerClosed;
         }
@@ -165,21 +163,24 @@ namespace core {
 
         switch (type) {
             case core::protocol::ProtocolType::kHttp:
-                logger_.warning("HTTP protocol not implemented yet");
-                // TODO: protocol_ = std::make_unique<Http>();
+                //logger_.debug("HTTP protocol not implemented yet");
                 return false; // not implemented yet
             case core::protocol::ProtocolType::kSocks5:
-                // protocol_ = std::make_unique<core::protocol::Socks5>();
-                logger_.warning("Socks5 protocol not implemented yet");
+                //logger_.debug("Socks5 protocol not implemented yet");
 
                 return false; 
             case core::protocol::ProtocolType::kSocks4:
                 protocol_ = std::make_unique<core::protocol::Socks4>();
                 return true;
             case core::protocol::ProtocolType::kSocks4a:
+                //logger_.debug("Socks4a protocol not implemented yet");
+                return false; 
             case core::protocol::ProtocolType::kUnsupported:
+                [[fallthrough]];
             case core::protocol::ProtocolType::kUnknown:
+                [[fallthrough]];
             default:
+                //logger_.debug("Unknown protocol");
                 return false;
         }
     }
@@ -194,21 +195,19 @@ namespace core {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
 
             if (client_socket < 0) {
-                // TODO: Log info - no more queued connections, or accept() failed
-                logger.info("No more queued connections or accept() failed");
+                logger.debug("No more queued connections or accept() failed.");
                 return ConnectionResult::OK; 
             }
 
             if (!core::SetSocketNonBlocking(client_socket)) {
-                // TODO: Log that client socket could not be set non-blocking
-                // Continuing could block the event loop so we have to close
-                logger.error("Client socket could not be set non-blocking, closing");
+                logger.error("[fd:" + std::to_string(client_socket) + "] Client socket could not be set non-blocking, closing");
                 core::CloseSocket(client_socket);
                 continue; // We do not need to fail the whole loop
             }
 
             if (!core::RegisterReadEvent(poller, client_socket)) {
                 // epoll registration failed
+                logger.warning("[fd:" + std::to_string(client_socket) + "] Epoll register failed");
                 core::CloseSocket(client_socket);
                 return ConnectionResult::EpollRegisterFailed;
             }
@@ -221,7 +220,7 @@ namespace core {
             if (accepted_out != nullptr) {
                 accepted_out->push_back(client_socket);    
             }
-            logger.info("Log that the client is accepted and registered with epoll");
+            logger.debug("Client [fd:" + std::to_string(client_socket) + "] is accepted and registered with epoll");
         }
     }
 

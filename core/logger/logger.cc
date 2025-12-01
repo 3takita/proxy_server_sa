@@ -2,6 +2,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <iostream>
 
 namespace core::logger {
 
@@ -22,9 +23,15 @@ void Logger::write(std::string_view level, std::string_view msg) {
         file << "[" << ts.str() << "] [" << level << "] " << msg << "\n";
         file.flush();
     }
+
+    // Potentially remove later
+    if (write_to_console) {
+        std::cout << "[" << ts.str() << "] [" << level << "] " << msg << std::endl;
+    }
 }
 
-void Logger::info(std::string_view msg) { write("INFO", msg); }
+void Logger::debug(std::string_view msg) { if(debug_logging) { write("DEBUG", msg); } }
+void Logger::info(std::string_view msg) { if(verbose_logging) { write("INFO", msg); } }
 void Logger::warning(std::string_view msg) { write("WARNING", msg); }
 void Logger::error(std::string_view msg) { write("ERROR", msg); }
 void Logger::critical(std::string_view msg) { write("CRITICAL", msg); }

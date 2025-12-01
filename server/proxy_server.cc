@@ -7,11 +7,7 @@
 #include "utils/string_utils.h"
 
 #include <cstring>
-#include <iostream> // Remove after Logger exists
 #include <vector>
-#include <chrono>
-#include <iomanip>
-#include <sstream>
 
 namespace server {
 
@@ -24,29 +20,24 @@ namespace server {
 
         if (socket_ < 0) {
             logger_.critical(("Failed to create listening socket on port ") + std::to_string(config_.port));
-            
-            // TODO: Log failed to create a listening socket on port_
             return; // We can't do anything without a listening socket
         }
 
         if (!core::SetSocketNonBlocking(socket_)) {
-            logger_.error("Failed to set listening socket non-blocking");
-            // TODO: Log failed to set socket non-blocking
+            logger_.error("[fd:" + std::to_string(socket_) + "] Failed to set listening socket non-blocking");
             CleanUpResources();
             return;
         }
 
         poller_ = core::CreateEventPoller();
         if (poller_ < 0) {
-            logger_.critical("Failed to create epoll instance");
-            // TODO: Log failed to create an epoll instance
+            logger_.critical("[fd:" + std::to_string(socket_) + "] Failed to create epoll instance");
             CleanUpResources();
             return;
         }
 
         if (!core::RegisterReadEvent(poller_, socket_)) {
-            logger_.critical("Failed to register listening socket with epoll");
-            // TODO: Log failed to register socket with epoll
+            logger_.critical("[fd:" + std::to_string(socket_) + "] Failed to register listening socket with epoll");
             CleanUpResources();
             return;
         }
@@ -60,16 +51,11 @@ namespace server {
             int n = core::WaitForEvents(poller_, events, config_.max_events, TIMEOUT);
 
             if (n < 0) {
-                logger_.error("epoll_wait failed");
-                // TODO: Log epoll_wait error
-                // This is super rare but if it happens we may want to re-create epoll
-                // For now just exit
+                logger_.error("[fd:" + std::to_string(socket_) + "] epoll_wait failed");
                 running = false;
                 break;
             } else if (n == 0) {
-                logger_.info("epoll_wait equals 0");
                 // Not expected with timeout = -1
-                // But we should log it if it does happen
                 continue;
             }
 
@@ -83,8 +69,7 @@ namespace server {
                 // ----------------------------
                 if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
                     if (fd == socket_) {
-                        // TODO: Log fatal listening socket error/hangup
-                        logger_.critical("Listening socket fatal error/hangup");
+                        logger_.error("[fd:" + std::to_string(fd) + "] Listening socket fatal error/hangup");
                         running = false;
                         break;
                     }
@@ -105,36 +90,29 @@ namespace server {
                     std::vector<core::SocketIdentifier> accepted;
                     (void)AcceptNewClientConnection(socket_, poller_, logger_, connections_, &accepted);
 
-                    // TODO: Remove the accepted socket vector once the logger is in place
-                    // Do not change the AcceptNewConnections signature nor the functionality
-                    // of AcceptNewConnections other than adding in the Logger
-                    // Remove the printout here but keep the vector
-                    // We can revisit this when the Logger is in place
-
-                    // Remove later
                     for (auto a : accepted) {
-                        std::string ip;
-                        uint16_t port = 0;
+                        core::ConnectionInfo info{};
+                        if (core::GetSocketInfo(a, info)) {
+                            std::string detail_log = "Connection details [fd:" + std::to_string(a) + "] " +
+                                                    info.source_ip + ":" + std::to_string(info.source_port) +
+                                                    " -> " + info.local_ip + ":" + std::to_string(info.local_port) +
+                                                    " | Protocol: " + (info.is_ipv6 ? "IPv6" : "IPv4") +
+                                                    " | SND_BUF: " + std::to_string(info.send_buffer_size) +
+                                                    " | RCV_BUF: " + std::to_string(info.recv_buffer_size);         
 
-                        auto now = std::chrono::system_clock::now();
-                        std::time_t now_c = std::chrono::system_clock::to_time_t(now);
-                        std::tm tm_buf{};
-                    #ifdef _WIN32
-                        localtime_s(&tm_buf, &now_c);
-                    #else
-                        localtime_r(&now_c, &tm_buf);
-                    #endif
-
-                        std::ostringstream timestamp;
-                        timestamp << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
-
-                        if (core::SocketToAddress(a, ip, port)) {
-                            std::cout << "[" << timestamp.str() << "] [+] New connection " << a
-                                    << " from " << ip << ":" << port << std::endl;
+                            logger_.info(detail_log);
                         } else {
-                            std::cout << "[" << timestamp.str() << "] [+] New connection " << a
-                                    << " (address unavailable)" << std::endl;
-                        }           
+                            std::string ip;
+                            uint16_t port = 0;
+                            if (core::SocketToAddress(a, ip, port)) {
+                                logger_.info("New connection [fd:" + std::to_string(a) + "] from " + 
+                                           ip + ":" + std::to_string(port) + 
+                                           " (detailed metrics unavailable)");
+                            } else {
+                                logger_.info("New connection [fd:" + std::to_string(a) + "] " +
+                                           "(address info unavailable)");
+                            }
+                        }
                     }
                     continue;
                 }
@@ -180,7 +158,7 @@ namespace server {
                         bool known = connection->SetProtocol();
 
                         if (!known || !connection->protocol_) {
-                            logger_.info("Unknown connection protocol; sending health response");
+                            logger_.debug("Unknown connection protocol; sending health response");
                             HealthResponse(*connection);
                             (void)core::UpdateEventInterest(
                                 poller_, 
@@ -224,7 +202,7 @@ namespace server {
                                 [[fallthrough]];
                             }
                             default: {
-                                logger_.warning("Protocol unknown or unimplemented; sending health response");
+                                logger_.debug("Protocol unknown or unimplemented; sending health response");
                                 HealthResponse(*connection);
                                 (void)core::UpdateEventInterest(
                                     poller_, 
