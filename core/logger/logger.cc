@@ -24,8 +24,10 @@ void Logger::write(std::string_view level, std::string_view msg) {
         file.flush();
     }
 
-    std::cout << "[" << ts.str() << "] [" << level << "] " << msg << std::endl;
-
+    // Potentially remove later
+    if (write_to_console) {
+        std::cout << "[" << ts.str() << "] [" << level << "] " << msg << std::endl;
+    }
 }
 
 void Logger::debug(std::string_view msg) { if(debug_logging) { write("DEBUG", msg); } }

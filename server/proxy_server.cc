@@ -158,7 +158,7 @@ namespace server {
                         bool known = connection->SetProtocol();
 
                         if (!known || !connection->protocol_) {
-                            //logger_.debug("Unknown connection protocol; sending health response");
+                            logger_.debug("Unknown connection protocol; sending health response");
                             HealthResponse(*connection);
                             (void)core::UpdateEventInterest(
                                 poller_, 
@@ -202,7 +202,7 @@ namespace server {
                                 [[fallthrough]];
                             }
                             default: {
-                                //logger_.debug("Protocol unknown or unimplemented; sending health response");
+                                logger_.debug("Protocol unknown or unimplemented; sending health response");
                                 HealthResponse(*connection);
                                 (void)core::UpdateEventInterest(
                                     poller_, 

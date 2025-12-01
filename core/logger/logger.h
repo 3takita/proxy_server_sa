@@ -24,6 +24,7 @@ private:
 
     bool verbose_logging{true};
     bool debug_logging{false};
+    bool write_to_console{true};
 
     void write(std::string_view level, std::string_view msg);
 };
