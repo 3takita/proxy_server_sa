@@ -97,14 +97,21 @@ namespace server {
                                                     info.source_ip + ":" + std::to_string(info.source_port) +
                                                     " -> " + info.local_ip + ":" + std::to_string(info.local_port) +
                                                     " | Protocol: " + (info.is_ipv6 ? "IPv6" : "IPv4") +
-                                                    " | State: " + info.tcp_state +
                                                     " | SND_BUF: " + std::to_string(info.send_buffer_size) +
-                                                    " | RCV_BUF: " + std::to_string(info.recv_buffer_size) +
-                                                    " | RCV_SPACE: " + std::to_string(info.rcv_space);
+                                                    " | RCV_BUF: " + std::to_string(info.recv_buffer_size);         
 
                             logger_.info(detail_log);
                         } else {
-                            
+                            std::string ip;
+                            uint16_t port = 0;
+                            if (core::SocketToAddress(a, ip, port)) {
+                                logger_.info("New connection [fd:" + std::to_string(a) + "] from " + 
+                                           ip + ":" + std::to_string(port) + 
+                                           " (detailed metrics unavailable)");
+                            } else {
+                                logger_.info("New connection [fd:" + std::to_string(a) + "] " +
+                                           "(address info unavailable)");
+                            }
                         }
                     }
                     continue;
@@ -151,7 +158,7 @@ namespace server {
                         bool known = connection->SetProtocol();
 
                         if (!known || !connection->protocol_) {
-                            logger_.info("Unknown connection protocol; sending health response");
+                            //logger_.debug("Unknown connection protocol; sending health response");
                             HealthResponse(*connection);
                             (void)core::UpdateEventInterest(
                                 poller_, 
@@ -195,7 +202,7 @@ namespace server {
                                 [[fallthrough]];
                             }
                             default: {
-                                //logger_.info("Protocol unknown or unimplemented; sending health response");
+                                //logger_.debug("Protocol unknown or unimplemented; sending health response");
                                 HealthResponse(*connection);
                                 (void)core::UpdateEventInterest(
                                     poller_, 

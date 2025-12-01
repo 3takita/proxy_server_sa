@@ -38,14 +38,6 @@ namespace core {
         int recv_buffer_size{0};
         bool keepalive_enabled{false};
         bool tcp_nodelay{false};
-        
-        // TCP info (Linux-specific but valuable)
-        uint32_t rtt_us{0};           // Round-trip time in microseconds
-        uint32_t rtt_var_us{0};       // RTT variance
-        uint32_t retransmits{0};      // Number of retransmits
-        uint32_t snd_cwnd{0};         // Send congestion window
-        uint32_t rcv_space{0};        // Receive window size
-        std::string tcp_state{};      // Connection state
 
         // We can add more stuff here later if we can grab more info
         // that is potentially useful

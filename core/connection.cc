@@ -163,24 +163,24 @@ namespace core {
 
         switch (type) {
             case core::protocol::ProtocolType::kHttp:
-                //logger_.info("HTTP protocol not implemented yet");
+                //logger_.debug("HTTP protocol not implemented yet");
                 return false; // not implemented yet
             case core::protocol::ProtocolType::kSocks5:
-                //logger_.info("Socks5 protocol not implemented yet");
+                //logger_.debug("Socks5 protocol not implemented yet");
 
                 return false; 
             case core::protocol::ProtocolType::kSocks4:
                 protocol_ = std::make_unique<core::protocol::Socks4>();
                 return true;
             case core::protocol::ProtocolType::kSocks4a:
-                //logger_.info("Socks4a protocol not implemented yet");
+                //logger_.debug("Socks4a protocol not implemented yet");
                 return false; 
             case core::protocol::ProtocolType::kUnsupported:
                 [[fallthrough]];
             case core::protocol::ProtocolType::kUnknown:
                 [[fallthrough]];
             default:
-                //logger_.info("Unknown protocol");
+                //logger_.debug("Unknown protocol");
                 return false;
         }
     }
@@ -195,7 +195,7 @@ namespace core {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
 
             if (client_socket < 0) {
-                logger.info("No more queued connections or accept() failed");
+                logger.debug("No more queued connections or accept() failed");
                 return ConnectionResult::OK; 
             }
 
@@ -207,6 +207,7 @@ namespace core {
 
             if (!core::RegisterReadEvent(poller, client_socket)) {
                 // epoll registration failed
+                logger.warning("Epoll register failed");
                 core::CloseSocket(client_socket);
                 return ConnectionResult::EpollRegisterFailed;
             }
@@ -219,7 +220,7 @@ namespace core {
             if (accepted_out != nullptr) {
                 accepted_out->push_back(client_socket);    
             }
-            logger.info("Log that the client is accepted and registered with epoll");
+            logger.debug("Client is accepted and registered with epoll");
         }
     }
 
