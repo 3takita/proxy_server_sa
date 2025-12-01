@@ -103,7 +103,6 @@ namespace core {
 
             if (n == 0) {
                 logger_.info("Peer closed connection gracefully");
-                // TODO: Log peer closed connection gracefully
                 closed_ = true;
                 break;
             }
@@ -115,7 +114,6 @@ namespace core {
 
         if (closed_) {
             logger_.info("Peer closed connection gracefully");
-            // TODO: Log client closed gracefully
             Close();
             return ConnectionResult::PeerClosed;
         }
@@ -165,21 +163,24 @@ namespace core {
 
         switch (type) {
             case core::protocol::ProtocolType::kHttp:
-                logger_.warning("HTTP protocol not implemented yet");
-                // TODO: protocol_ = std::make_unique<Http>();
+                //logger_.info("HTTP protocol not implemented yet");
                 return false; // not implemented yet
             case core::protocol::ProtocolType::kSocks5:
-                // protocol_ = std::make_unique<core::protocol::Socks5>();
-                logger_.warning("Socks5 protocol not implemented yet");
+                //logger_.info("Socks5 protocol not implemented yet");
 
                 return false; 
             case core::protocol::ProtocolType::kSocks4:
                 protocol_ = std::make_unique<core::protocol::Socks4>();
                 return true;
             case core::protocol::ProtocolType::kSocks4a:
+                //logger_.info("Socks4a protocol not implemented yet");
+                return false; 
             case core::protocol::ProtocolType::kUnsupported:
+                [[fallthrough]];
             case core::protocol::ProtocolType::kUnknown:
+                [[fallthrough]];
             default:
+                //logger_.info("Unknown protocol");
                 return false;
         }
     }
@@ -194,14 +195,11 @@ namespace core {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
 
             if (client_socket < 0) {
-                // TODO: Log info - no more queued connections, or accept() failed
                 logger.info("No more queued connections or accept() failed");
                 return ConnectionResult::OK; 
             }
 
             if (!core::SetSocketNonBlocking(client_socket)) {
-                // TODO: Log that client socket could not be set non-blocking
-                // Continuing could block the event loop so we have to close
                 logger.error("Client socket could not be set non-blocking, closing");
                 core::CloseSocket(client_socket);
                 continue; // We do not need to fail the whole loop

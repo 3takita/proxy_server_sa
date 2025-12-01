@@ -5,12 +5,13 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
+#include <linux/tcp.h>
 #include <netdb.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/epoll.h>
 #include <errno.h>
-
 
 namespace core {
 
@@ -267,6 +268,105 @@ namespace core {
         ip = host;
         port = static_cast<uint16_t>(std::stoi(serv));
         return true;
+    }
+
+    bool GetSocketInfo(SocketIdentifier socket, ConnectionInfo& info) {
+        info.socket_id = socket;
+
+        // Get remote (peer) address
+        sockaddr_storage remote_addr{};
+        socklen_t remote_len = sizeof(remote_addr);
+        if (::getpeername(socket, reinterpret_cast<sockaddr*>(&remote_addr), &remote_len) == 0) {
+            char host[NI_MAXHOST];
+            char serv[NI_MAXSERV];
+            
+            int rc = ::getnameinfo(
+                reinterpret_cast<sockaddr*>(&remote_addr), 
+                remote_len, 
+                host, 
+                sizeof(host), 
+                serv, 
+                sizeof(serv), 
+                NI_NUMERICHOST | NI_NUMERICSERV
+            );
+            
+            if (rc == 0) {
+                info.source_ip = host;
+                info.source_port = static_cast<uint16_t>(std::stoi(serv));
+                info.is_ipv6 = (remote_addr.ss_family == AF_INET6);
+                info.info_available = true;
+            }
+        }
+
+        // Get local address
+        sockaddr_storage local_addr{};
+        socklen_t local_len = sizeof(local_addr);
+        if (::getsockname(socket, reinterpret_cast<sockaddr*>(&local_addr), &local_len) == 0) {
+            char host[NI_MAXHOST];
+            char serv[NI_MAXSERV];
+            
+            int rc = ::getnameinfo(
+                reinterpret_cast<sockaddr*>(&local_addr), 
+                local_len, 
+                host, 
+                sizeof(host), 
+                serv, 
+                sizeof(serv), 
+                NI_NUMERICHOST | NI_NUMERICSERV
+            );
+            
+            if (rc == 0) {
+                info.local_ip = host;
+                info.local_port = static_cast<uint16_t>(std::stoi(serv));
+            }
+        }
+
+        socklen_t optlen = sizeof(int);
+        ::getsockopt(socket, SOL_SOCKET, SO_SNDBUF, &info.send_buffer_size, &optlen);
+        ::getsockopt(socket, SOL_SOCKET, SO_RCVBUF, &info.recv_buffer_size, &optlen);
+
+        // Get keepalive status
+        int keepalive = 0;
+        optlen = sizeof(keepalive);
+        if (::getsockopt(socket, SOL_SOCKET, SO_KEEPALIVE, &keepalive, &optlen) == 0) {
+            info.keepalive_enabled = (keepalive != 0);
+        }
+        
+        // Get TCP_NODELAY status
+        int nodelay = 0;
+        optlen = sizeof(nodelay);
+        if (::getsockopt(socket, IPPROTO_TCP, TCP_NODELAY, &nodelay, &optlen) == 0) {
+            info.tcp_nodelay = (nodelay != 0);
+        }
+        
+        // Get TCP_INFO (Linux-specific, contains tons of useful stats)
+        struct tcp_info tcp_inf{};
+        optlen = sizeof(tcp_inf);
+        if (::getsockopt(socket, IPPROTO_TCP, TCP_INFO, &tcp_inf, &optlen) == 0) {
+            info.rtt_us = tcp_inf.tcpi_rtt;
+            info.rtt_var_us = tcp_inf.tcpi_rttvar;
+            info.retransmits = tcp_inf.tcpi_retransmits;
+            info.snd_cwnd = tcp_inf.tcpi_snd_cwnd;
+            info.rcv_space = tcp_inf.tcpi_rcv_space;
+            
+            // Decode TCP state
+            switch (tcp_inf.tcpi_state) {
+                case TCP_ESTABLISHED: info.tcp_state = "ESTABLISHED"; break;
+                case TCP_SYN_SENT: info.tcp_state = "SYN_SENT"; break;
+                case TCP_SYN_RECV: info.tcp_state = "SYN_RECV"; break;
+                case TCP_FIN_WAIT1: info.tcp_state = "FIN_WAIT1"; break;
+                case TCP_FIN_WAIT2: info.tcp_state = "FIN_WAIT2"; break;
+                case TCP_TIME_WAIT: info.tcp_state = "TIME_WAIT"; break;
+                case TCP_CLOSE: info.tcp_state = "CLOSE"; break;
+                case TCP_CLOSE_WAIT: info.tcp_state = "CLOSE_WAIT"; break;
+                case TCP_LAST_ACK: info.tcp_state = "LAST_ACK"; break;
+                case TCP_LISTEN: info.tcp_state = "LISTEN"; break;
+                case TCP_CLOSING: info.tcp_state = "CLOSING"; break;
+                default: info.tcp_state = "UNKNOWN"; break;
+            }
+        }
+        
+        return info.info_available;
     }
 
 } // namespace core

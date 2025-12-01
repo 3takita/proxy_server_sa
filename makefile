@@ -66,7 +66,7 @@ $(TEST_BINDIR)/$(TEST_TARGET): $(TEST_OBJS) $(CORE_OBJS)
 	@$(CXX) $(TEST_OBJS) $(CORE_OBJS) -o $@ $(LDFLAGS)
 
 # ----- Commands -----
-.PHONY: core server test build-tests clean run help
+.PHONY: core server test build-tests clean clean-test clean-all run help
 
 core: $(CORE_OBJS)
 	@echo "[makefile] Core up to date (platform=$(PLATFORM))"
@@ -77,9 +77,16 @@ server: $(BINDIR)/$(TARGET)
 clean:
 	@echo "[makefile] Removing obj/ and bin/"
 	@rm -rf $(OBJDIR) $(BINDIR) $(RELDIR)
+	
+clean-test:
 	@echo "[makefile] Removing tests/obj/ and tests/bin/"
 	@rm -rf $(TEST_OBJDIR) $(TEST_BINDIR)
 
+clean-all:
+	@$(MAKE) clean
+	@$(MAKE) clean-test
+	@echo "[makefile] Removing log files"
+	@rm -f *.log
 
 test: $(TEST_BINDIR)/$(TEST_TARGET)
 	@echo "[makefile] Running tests..."
@@ -103,8 +110,10 @@ help:
 	@echo "  build-tests Build test executable without running -> $(TEST_BINDIR)/$(TEST_TARGET)"
 	@echo "  test        Build and run all tests -> $(TEST_BINDIR)/$(TEST_TARGET)"
 	@echo "  run         Build (incremental) and run ./$(BINDIR)/$(TARGET)"
-	@echo "  clean       Remove obj/ and bin/"
-	@echo "  help        Show this help"
+	@echo "  clean       Remove $(OBJDIR) and $(BINDIR)"
+	@echo "  clean-test  Remove $(TEST_OBJDIR) and $(TEST_BINDIR)"
+	@echo "  clean-all   Remove $(OBJDIR), $(BINDIR), $(TEST_OBJDIR), $(TEST_BINDIR) and .log files"
+	@echo "  help        Show this dialog"
 
 # ----- Include dependencies if present -----
 -include $(DEPS)

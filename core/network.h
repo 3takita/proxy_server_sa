@@ -24,6 +24,33 @@ namespace core {
         uint32_t mask{}; // bitwise OR of kEvent* flags
     };
 
+    struct ConnectionInfo {
+        SocketIdentifier socket_id{-1};
+        std::string source_ip{};
+        uint16_t source_port{0};
+        std::string local_ip{};
+        uint16_t local_port{0};
+        bool is_ipv6{false};
+        bool info_available{false};
+
+        // Socket options
+        int send_buffer_size{0};
+        int recv_buffer_size{0};
+        bool keepalive_enabled{false};
+        bool tcp_nodelay{false};
+        
+        // TCP info (Linux-specific but valuable)
+        uint32_t rtt_us{0};           // Round-trip time in microseconds
+        uint32_t rtt_var_us{0};       // RTT variance
+        uint32_t retransmits{0};      // Number of retransmits
+        uint32_t snd_cwnd{0};         // Send congestion window
+        uint32_t rcv_space{0};        // Receive window size
+        std::string tcp_state{};      // Connection state
+
+        // We can add more stuff here later if we can grab more info
+        // that is potentially useful
+    };
+
     // ===========================
     // Generic Network Abstraction
     // ===========================
@@ -93,6 +120,10 @@ namespace core {
 
     // Returns true and fills ip and port on success
     bool SocketToAddress(SocketIdentifier socket, std::string& ip, uint16_t& port);
+
+    // Get comprehensive information about a socket
+    // Returns true if basic info was retrived, populates as much as possible
+    bool GetSocketInfo(SocketIdentifier socket, ConnectionInfo& info);
 
 }   // namespace core
 
