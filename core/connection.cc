@@ -102,7 +102,7 @@ namespace core {
             }
 
             if (n == 0) {
-                logger_.info("Peer closed connection gracefully");
+                logger_.info("Peer [fd:" + std::to_string(id_) + "] closed connection gracefully");
                 closed_ = true;
                 break;
             }
@@ -113,7 +113,7 @@ namespace core {
         }
 
         if (closed_) {
-            logger_.info("Peer closed connection gracefully");
+            logger_.info("Peer [fd:" + std::to_string(id_) + "] closed connection gracefully");
             Close();
             return ConnectionResult::PeerClosed;
         }
@@ -195,19 +195,19 @@ namespace core {
             core::SocketIdentifier client_socket = core::AcceptConnection(socket);
 
             if (client_socket < 0) {
-                logger.debug("No more queued connections or accept() failed");
+                logger.debug("No more queued connections or accept() failed.");
                 return ConnectionResult::OK; 
             }
 
             if (!core::SetSocketNonBlocking(client_socket)) {
-                logger.error("Client socket could not be set non-blocking, closing");
+                logger.error("[fd:" + std::to_string(client_socket) + "] Client socket could not be set non-blocking, closing");
                 core::CloseSocket(client_socket);
                 continue; // We do not need to fail the whole loop
             }
 
             if (!core::RegisterReadEvent(poller, client_socket)) {
                 // epoll registration failed
-                logger.warning("Epoll register failed");
+                logger.warning("[fd:" + std::to_string(client_socket) + "] Epoll register failed");
                 core::CloseSocket(client_socket);
                 return ConnectionResult::EpollRegisterFailed;
             }
@@ -220,7 +220,7 @@ namespace core {
             if (accepted_out != nullptr) {
                 accepted_out->push_back(client_socket);    
             }
-            logger.debug("Client is accepted and registered with epoll");
+            logger.debug("Client [fd:" + std::to_string(client_socket) + "] is accepted and registered with epoll");
         }
     }
 

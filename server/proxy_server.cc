@@ -24,20 +24,20 @@ namespace server {
         }
 
         if (!core::SetSocketNonBlocking(socket_)) {
-            logger_.error("Failed to set listening socket non-blocking");
+            logger_.error("[fd:" + std::to_string(socket_) + "] Failed to set listening socket non-blocking");
             CleanUpResources();
             return;
         }
 
         poller_ = core::CreateEventPoller();
         if (poller_ < 0) {
-            logger_.critical("Failed to create epoll instance");
+            logger_.critical("[fd:" + std::to_string(socket_) + "] Failed to create epoll instance");
             CleanUpResources();
             return;
         }
 
         if (!core::RegisterReadEvent(poller_, socket_)) {
-            logger_.critical("Failed to register listening socket with epoll");
+            logger_.critical("[fd:" + std::to_string(socket_) + "] Failed to register listening socket with epoll");
             CleanUpResources();
             return;
         }
@@ -51,7 +51,7 @@ namespace server {
             int n = core::WaitForEvents(poller_, events, config_.max_events, TIMEOUT);
 
             if (n < 0) {
-                logger_.error("epoll_wait failed");
+                logger_.error("[fd:" + std::to_string(socket_) + "] epoll_wait failed");
                 running = false;
                 break;
             } else if (n == 0) {
@@ -69,7 +69,7 @@ namespace server {
                 // ----------------------------
                 if (mask & (core::kEventError | core::kEventHangup | core::kEventOther)) {
                     if (fd == socket_) {
-                        logger_.error("Listening socket fatal error/hangup");
+                        logger_.error("[fd:" + std::to_string(fd) + "] Listening socket fatal error/hangup");
                         running = false;
                         break;
                     }
