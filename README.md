@@ -1,12 +1,12 @@
 # Forward Proxy Server
-A lightweight C++ proxy server supporting SOCKS4 and SOCKS4a. Designed for performance and OS portablity, with plans to support SOCKS5 and HTTP/HTTPS in future releases.
+A lightweight C++ proxy server supporting SOCKS4. Designed for performance and OS portablity, with plans to support SOCKS4a, SOCKS5 and HTTP/HTTPS in future releases.
 
 ## Contributors
-- Chris Manlove
-- Ellie Winter
-- Stephen Anaba
-- Benjamin Lac
-- Yordy Raya Sanchez
+- Chris Manlove (chrismanlove@csu.fullerton.edu)
+- Ellie Winter (Ewinter2@csu.fullerton.edu)
+- Stephen Anaba (stevoclock@csu.fullerton.edu)
+- Benjamin Lac (benjaminlac509@csu.fullerton.edu)
+- Yordy Raya Sanchez (yordyraya@csu.fullerton.edu)
 
 ## Language 
 C++ 20
@@ -25,6 +25,7 @@ make run
 ```
 
 This will start the server on port 8080.
+The project currently will only compile on a UNIX (Linux or MacOS) system.
 
 ## Server Argument Info
 
@@ -39,9 +40,10 @@ This will start the server on port 8080.
 The proxy listens on a TCP socket, detects the incoming protocol, and establishes an upstream connection for traffic relay.
 
 ### Supported:
-  - Socks4 / Socks4a
+  - SOCKS4
 ### Planned:
-  - Socks5
+  - SOCKS4a
+  - SOCKS5
   - HTTP/HTTPS
   - Windows support
 
