@@ -29,12 +29,12 @@ The project currently will only compile on a UNIX (Linux or MacOS) system.
 
 ## Server Argument Info
 
---port N	TCP port to listen on (default: 8080)
---backlog N	Maximum number of pending connections (default: 128)
---max-events N	Maximum number of events returned by epoll (default: 16)
---bind-host IP	IP address/interface to bind (default: all interfaces)
---verbose	Enable verbose logging
---help	Show usage information
+- --port N	TCP port to listen on (default: 8080)
+- --backlog N	Maximum number of pending connections (default: 128)
+- --max-events N	Maximum number of events returned by epoll (default: 16)
+- --bind-host IP	IP address/interface to bind (default: all interfaces)
+- --verbose	Enable verbose logging
+- --help	Show usage information
 
 ## About
 The proxy listens on a TCP socket, detects the incoming protocol, and establishes an upstream connection for traffic relay.
