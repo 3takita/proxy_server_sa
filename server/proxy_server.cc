@@ -150,7 +150,7 @@ namespace server {
                     }
 
                     // Uncomment below to see user requests outputed to the console
-                    std::cout << core::utils::bytesToReadableString(connection->receive_buffer_) << std::endl;
+                    //std::cout << core::utils::bytesToReadableString(connection->receive_buffer_) << std::endl;
                     //std::cout << core::utils::bytesToHex(connection->receive_buffer_) << std::endl;
 
                     if (connection->role_ == core::ConnectionRole::Client) {
